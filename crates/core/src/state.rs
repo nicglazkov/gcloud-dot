@@ -77,7 +77,7 @@ impl State {
     pub fn load(path: &Path) -> Self {
         std::fs::read_to_string(path)
             .ok()
-            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .and_then(|raw| serde_json::from_str(strip_bom(&raw)).ok())
             .unwrap_or_default()
     }
 
@@ -94,6 +94,20 @@ impl State {
         std::fs::write(&tmp, serde_json::to_vec_pretty(self)?)?;
         std::fs::rename(&tmp, path)
     }
+}
+
+/// Remove a UTF-8 byte order mark, which is not valid JSON.
+///
+/// Windows PowerShell 5.1 writes one for `Set-Content -Encoding UTF8`, so every
+/// state file the PowerShell tray ever wrote begins with U+FEFF. `read_to_string`
+/// accepts those bytes happily — they are well-formed UTF-8 — and then
+/// `serde_json` rejects the document at byte zero. The failure is silent,
+/// because a legacy file that cannot be parsed is indistinguishable from one
+/// that is not there.
+///
+/// Notepad does the same thing, so this protects hand-edited files of our own.
+fn strip_bom(s: &str) -> &str {
+    s.strip_prefix('\u{feff}').unwrap_or(s)
 }
 
 /// The shape written by the PowerShell tray this app replaces.
@@ -117,7 +131,7 @@ pub fn migrate_legacy(state: &mut State) -> Option<String> {
 
     if let Some(path) = crate::paths::legacy_windows_state_path() {
         if let Ok(raw) = std::fs::read_to_string(&path) {
-            if let Ok(legacy) = serde_json::from_str::<LegacyWindowsState>(&raw) {
+            if let Ok(legacy) = serde_json::from_str::<LegacyWindowsState>(strip_bom(&raw)) {
                 if !legacy.logins.is_empty() || !legacy.samples.is_empty() {
                     state.logins = legacy.logins;
                     state.samples = legacy.samples;
@@ -269,6 +283,36 @@ mod tests {
         let legacy: LegacyWindowsState = serde_json::from_str(raw).unwrap();
         assert_eq!(legacy.logins.len(), 2);
         assert_eq!(legacy.samples, vec![15.93, 16.07, 16.08]);
+    }
+
+    #[test]
+    fn parses_a_legacy_file_with_a_byte_order_mark() {
+        // Windows PowerShell 5.1 writes a UTF-8 BOM for `Set-Content -Encoding
+        // UTF8`, so every file the previous tray produced starts with one.
+        // Without stripping it, serde_json fails at byte zero and the whole
+        // migration is skipped in silence — which is exactly what happened on
+        // a real machine holding eighteen hard-won samples.
+        let raw = "\u{feff}{\"logins\":[],\"samples\":[16.06,16.07,15.91]}";
+        let legacy: LegacyWindowsState = serde_json::from_str(strip_bom(raw)).unwrap();
+        assert_eq!(legacy.samples.len(), 3);
+    }
+
+    #[test]
+    fn our_own_state_survives_a_byte_order_mark() {
+        // Someone opening state.json in Notepad and saving it adds one too.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("state.json");
+        let mut s = State::default();
+        s.record_sample(16.06);
+        let json = serde_json::to_string(&s).unwrap();
+        std::fs::write(&path, format!("\u{feff}{json}")).unwrap();
+        assert_eq!(State::load(&path).samples, vec![16.06]);
+    }
+
+    #[test]
+    fn strip_bom_leaves_ordinary_text_alone() {
+        assert_eq!(strip_bom("{\"a\":1}"), "{\"a\":1}");
+        assert_eq!(strip_bom("\u{feff}{}"), "{}");
     }
 
     #[test]
