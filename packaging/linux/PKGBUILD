@@ -6,7 +6,7 @@ pkgdesc="Shows how long your gcloud auth session has left, from the system tray"
 arch=('x86_64' 'aarch64')
 url="https://github.com/nicglazkov/gcloud-dot"
 license=('MIT')
-depends=('gtk3' 'webkit2gtk-4.1')
+depends=('gtk3' 'webkit2gtk-4.1' 'xdotool' 'dbus')
 # The tray needs an indicator host; the gcloud-dot command does not, and on a
 # headless Arch box that command is the entire point.
 optdepends=('libayatana-appindicator: system tray icon'

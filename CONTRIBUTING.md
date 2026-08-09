@@ -16,7 +16,8 @@ standard library, which stabilised there.
 On Linux the tray needs system libraries:
 
 ```sh
-sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
+  libayatana-appindicator3-dev libxdo-dev libdbus-1-dev
 ```
 
 The `gcloud-dot` command needs none of them. Keeping it that way matters —

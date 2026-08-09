@@ -45,7 +45,7 @@ Version: $VERSION
 Section: devel
 Priority: optional
 Architecture: $ARCH
-Depends: libc6, libgtk-3-0, libwebkit2gtk-4.1-0
+Depends: libc6, libgtk-3-0, libwebkit2gtk-4.1-0, libxdo3, libdbus-1-3
 Recommends: libayatana-appindicator3-1
 Maintainer: Nicholas Glazkov <nic@glazkov.com>
 Homepage: https://nicglazkov.github.io/gcloud-dot/

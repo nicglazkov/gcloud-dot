@@ -91,8 +91,8 @@
     support extension</a> there is nowhere for the dot to go. GCloud Dot detects
     this at startup and tells you, rather than launching into an invisible tray
     and appearing broken.</p>
-    <p>Packages depend on <code>libgtk-3</code> and <code>libwebkit2gtk-4.1</code>
-    for the tray and the details window, and only <em>recommend</em>
+    <p>Packages depend on <code>libgtk-3</code>, <code>libwebkit2gtk-4.1</code>, <code>libxdo3</code>,
+    and <code>libdbus-1</code> for the tray and the details window, and only <em>recommend</em>
     <code>libayatana-appindicator3</code>. The recommendation is deliberate:
     without it the dot cannot appear, but <code>gcloud-dot</code> the command
     still works perfectly, and on a headless machine that command is the whole

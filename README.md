@@ -183,7 +183,7 @@ make dist-macos          # signed, notarized, stapled, packaged
 ```
 
 Rust 1.89 or later. On Linux the tray needs `libwebkit2gtk-4.1-dev`,
-`libgtk-3-dev`, and `libayatana-appindicator3-dev`; the `gcloud-dot` command
+`libgtk-3-dev`, `libayatana-appindicator3-dev`, `libxdo-dev`, and `libdbus-1-dev`; the `gcloud-dot` command
 needs none of them, which CI proves on every commit by building it on a machine
 with no desktop libraries at all.
 

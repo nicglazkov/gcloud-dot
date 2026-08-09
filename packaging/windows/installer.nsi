@@ -5,7 +5,9 @@
 ; asking for more trust than it needs.
 
 !include "MUI2.nsh"
-!include "FileFunc.nsh"
+!include "FileFunc.nsh"    ; ${GetSize}
+!include "WordFunc.nsh"    ; ${WordFind}
+!include "WinMessages.nsh" ; ${HWND_BROADCAST}, ${WM_WININICHANGE}
 
 !ifndef VERSION
   !define VERSION "1.0.0"

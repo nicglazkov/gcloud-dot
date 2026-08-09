@@ -91,6 +91,14 @@ say ""
 say "  Run 'gcloud-dot' for a one-off check."
 if [ "$WANT_GUI" -eq 1 ]; then
   say "  Run 'gcloud-dot-tray' to put the dot in your menu bar or tray."
+  if [ "$os" = "Darwin" ]; then
+    say ""
+    # A bare binary has no bundle identifier, and macOS attributes a
+    # notification to a bundle. The dot and the menu work either way.
+    say "  On macOS the DMG is the better route for the app itself: notifications"
+    say "  need a bundle identifier, which only the packaged app has."
+    say "  https://github.com/$REPO/releases/latest"
+  fi
   if [ "$os" = "Linux" ]; then
     say ""
     say "  On GNOME the tray needs the AppIndicator extension; without it the"
