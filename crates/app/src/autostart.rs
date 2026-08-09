@@ -6,6 +6,13 @@
 
 use std::path::PathBuf;
 
+/// The LaunchAgent label, which is also the bundle identifier — shared with the
+/// app this one replaces so macOS treats the upgrade as the same application
+/// rather than a second one.
+///
+/// Only macOS has anything to name: Windows uses a Startup shortcut and Linux a
+/// desktop entry, neither of which carries an identifier.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const LABEL: &str = "com.nic.gclouddot";
 
 /// Is the app registered to start at login?
