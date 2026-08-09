@@ -16,6 +16,15 @@ fn try_show(title: &str, body: &str, urgency: Urgency) -> Result<(), Box<dyn std
     let mut n = notify_rust::Notification::new();
     n.summary(title).body(body);
 
+    #[cfg(target_os = "windows")]
+    {
+        // Without an application identity, notify-rust falls back to
+        // PowerShell's, and every toast is labelled "PowerShell". For an app
+        // that watches credentials, a security prompt apparently from a shell
+        // is worse than no notification at all.
+        n.app_id(gcloud_dot_core::proc::WINDOWS_APP_ID);
+    }
+
     #[cfg(target_os = "macos")]
     {
         // Notifications on macOS are attributed to a bundle. Ours is set here
@@ -42,3 +51,38 @@ fn try_show(title: &str, body: &str, urgency: Urgency) -> Result<(), Box<dyn std
     n.show()?;
     Ok(())
 }
+
+/// Teach Windows the name and icon to show on this app's notifications.
+///
+/// An unpackaged desktop application has no manifest for Windows to read, so
+/// the display name and icon are looked up in the registry under the
+/// application identity. Writing them is all that stands between a toast that
+/// says "GCloud Dot" and one that says "PowerShell".
+///
+/// Written on every start because it costs nothing and repairs itself after a
+/// profile is reset or a half finished uninstall.
+#[cfg(target_os = "windows")]
+pub fn register_windows_identity() {
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_WRITE};
+    use winreg::RegKey;
+
+    let path = format!(
+        "Software\\Classes\\AppUserModelId\\{}",
+        gcloud_dot_core::proc::WINDOWS_APP_ID
+    );
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let Ok((key, _)) = hkcu.create_subkey_with_flags(&path, KEY_WRITE) else {
+        return;
+    };
+    let _ = key.set_value("DisplayName", &"GCloud Dot");
+    if let Ok(exe) = std::env::current_exe() {
+        // The icon ships beside the executable, put there by the installer.
+        let icon = exe.with_file_name("gcloud-dot.ico");
+        if icon.exists() {
+            let _ = key.set_value("IconUri", &icon.to_string_lossy().to_string());
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn register_windows_identity() {}

@@ -165,7 +165,7 @@ pub fn migrate_legacy(state: &mut State) -> Option<String> {
 /// fragile than parsing that format for a single number.
 #[cfg(target_os = "macos")]
 fn legacy_macos_observed_hours() -> Option<f64> {
-    let out = std::process::Command::new("defaults")
+    let out = crate::proc::quiet("defaults")
         .args(["read", "com.nic.gclouddot", "ObservedSessionHours"])
         .output()
         .ok()?;

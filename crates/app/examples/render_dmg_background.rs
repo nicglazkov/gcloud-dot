@@ -69,7 +69,15 @@ fn render(s: u32) -> Vec<u8> {
 
     // The arrow, between the two icons at y = 200.
     let ink = (110, 122, 112);
-    arrow(&mut rgba, w, 268.0 * sf, 392.0 * sf, 200.0 * sf, 3.0 * sf, ink);
+    arrow(
+        &mut rgba,
+        w,
+        268.0 * sf,
+        392.0 * sf,
+        200.0 * sf,
+        3.0 * sf,
+        ink,
+    );
 
     // One instruction, and one line saying what the thing is.
     text(

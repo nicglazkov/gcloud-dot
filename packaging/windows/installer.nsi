@@ -60,6 +60,14 @@ Section "GCloud Dot" SecMain
 
   WriteRegStr HKCU "Software\GCloudDot" "InstallDir" "$INSTDIR"
 
+  ; Windows reads the name and icon for an unpackaged app's notifications from
+  ; here. Without it every toast is attributed to PowerShell, which is both
+  ; wrong and alarming for an app that watches credentials. The app writes
+  ; these too, so an install done by the script route is covered as well.
+  !define AUMID "Software\Classes\AppUserModelId\nicglazkov.GCloudDot"
+  WriteRegStr HKCU "${AUMID}" "DisplayName" "GCloud Dot"
+  WriteRegStr HKCU "${AUMID}" "IconUri" "$INSTDIR\gcloud-dot.ico"
+
   ; Put the CLI on PATH for this user. Broadcasting the change means an already
   ; open Explorer hands the new PATH to shells started afterwards.
   ReadRegStr $0 HKCU "Environment" "Path"
@@ -109,6 +117,7 @@ Section "Uninstall"
   Delete "$SMSTARTUP\GCloud Dot.lnk"
 
   DeleteRegKey HKCU "Software\GCloudDot"
+  DeleteRegKey HKCU "Software\Classes\AppUserModelId\nicglazkov.GCloudDot"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\GCloudDot"
 
   ; Measured session lengths take days of wall-clock time to gather, so they are

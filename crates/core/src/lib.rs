@@ -21,6 +21,7 @@ pub mod gcloud;
 pub mod logs;
 pub mod paths;
 pub mod probe;
+pub mod proc;
 pub mod settings;
 pub mod state;
 pub mod status;

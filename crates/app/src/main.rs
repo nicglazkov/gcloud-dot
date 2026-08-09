@@ -46,6 +46,7 @@ enum UserEvent {
     Menu(String),
     Panel(String),
     UpdateFound(String),
+    LoginFailed(String),
 }
 
 #[derive(Debug, Default)]
@@ -92,6 +93,9 @@ fn main() {
     if let Some(note) = &migrated {
         eprintln!("gcloud-dot: {note}");
     }
+
+    // Do this before anything can raise a notification.
+    notify::register_windows_identity();
 
     // Before touching the login item, stand down whatever came before. Both
     // predecessors share this app's identity, so leaving one running puts two
@@ -220,6 +224,19 @@ fn main() {
 
             Event::UserEvent(UserEvent::Panel(message)) => {
                 app.on_panel_message(&message, &proxy);
+            }
+
+            // gcloud runs with no window, so a failure has nowhere to appear
+            // unless the app says so itself.
+            Event::UserEvent(UserEvent::LoginFailed(reason)) => {
+                notify::show(
+                    "Sign in did not finish",
+                    &format!(
+                        "{reason}\nFull output: {}",
+                        actions::login_log_path().display()
+                    ),
+                    gcloud_dot_core::Urgency::Warning,
+                );
             }
 
             Event::UserEvent(UserEvent::UpdateFound(version)) => {
@@ -523,9 +540,25 @@ impl App {
         let Some(path) = self.gcloud_path.clone() else {
             return;
         };
-        if let Err(e) = actions::login(&path) {
-            eprintln!("gcloud-dot: could not start the sign-in: {e}");
-            return;
+        match actions::login(&path) {
+            Ok(mut child) => {
+                // Wait off the event loop. A sign in takes as long as the
+                // person takes.
+                let proxy = self.proxy.clone();
+                std::thread::spawn(move || {
+                    let ok = child.wait().map(|s| s.success()).unwrap_or(false);
+                    if !ok {
+                        let out =
+                            std::fs::read_to_string(actions::login_log_path()).unwrap_or_default();
+                        let _ =
+                            proxy.send_event(UserEvent::LoginFailed(actions::failure_reason(&out)));
+                    }
+                });
+            }
+            Err(e) => {
+                eprintln!("gcloud-dot: could not start the sign in: {e}");
+                return;
+            }
         }
         // Poll hard for a few minutes so the dot goes green as soon as the
         // browser hand-off completes, rather than at the next slow tick.

@@ -4,7 +4,7 @@
 //! and reports what actually happened, which is why the UI is allowed to state
 //! its result as fact.
 
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Duration;
 
 /// What a probe actually established.
@@ -114,7 +114,7 @@ impl Credential {
 /// safe to poll every few minutes without corrupting the very measurement the
 /// estimator is taking.
 pub fn run(gcloud: &std::path::Path, which: Credential, timeout: Duration) -> ProbeOutcome {
-    let mut cmd = Command::new(gcloud);
+    let mut cmd = crate::proc::quiet(gcloud);
     cmd.args(which.args())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -122,14 +122,6 @@ pub fn run(gcloud: &std::path::Path, which: Credential, timeout: Duration) -> Pr
         // Without this gcloud can block forever waiting on a y/n it will never
         // get, since we have given it no stdin to read from.
         .env("CLOUDSDK_CORE_DISABLE_PROMPTS", "1");
-
-    #[cfg(windows)]
-    {
-        // Stops a console window flashing on screen every probe.
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
 
     let child = match cmd.spawn() {
         Ok(c) => c,

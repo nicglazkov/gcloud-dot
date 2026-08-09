@@ -29,10 +29,10 @@ pub fn retire() -> Option<String> {
 
     // Unload first: without this launchd relaunches whatever we kill.
     let uid = unsafe { libc_getuid() };
-    let _ = std::process::Command::new("launchctl")
+    let _ = gcloud_dot_core::proc::quiet("launchctl")
         .args(["bootout", &format!("gui/{uid}/{}", crate::autostart::LABEL)])
         .output();
-    let _ = std::process::Command::new("pkill")
+    let _ = gcloud_dot_core::proc::quiet("pkill")
         .args(["-f", LEGACY_BINARY_SUFFIX])
         .output();
 
@@ -56,21 +56,21 @@ unsafe fn libc_getuid() -> u32 {
 /// item, so the same reasoning applies there.
 #[cfg(target_os = "windows")]
 pub fn retire() -> Option<String> {
-    let query = std::process::Command::new("schtasks")
+    let query = gcloud_dot_core::proc::quiet("schtasks")
         .args(["/Query", "/TN", "GcloudAuthTray"])
         .output()
         .ok()?;
     if !query.status.success() {
         return None;
     }
-    let _ = std::process::Command::new("schtasks")
+    let _ = gcloud_dot_core::proc::quiet("schtasks")
         .args(["/End", "/TN", "GcloudAuthTray"])
         .output();
-    let _ = std::process::Command::new("schtasks")
+    let _ = gcloud_dot_core::proc::quiet("schtasks")
         .args(["/Delete", "/TN", "GcloudAuthTray", "/F"])
         .output();
     // The old tray is a hidden PowerShell host, identified by its script name.
-    let _ = std::process::Command::new("powershell")
+    let _ = gcloud_dot_core::proc::quiet("powershell")
         .args([
             "-NoProfile",
             "-NonInteractive",

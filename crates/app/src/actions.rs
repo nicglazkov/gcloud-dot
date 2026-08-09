@@ -1,79 +1,75 @@
 //! Things the user asks for from the menu or the panel.
 //!
-//! Signing in is deliberately handed to a visible terminal rather than run
-//! silently in the background. `gcloud auth login` asks questions, prints a URL
-//! that sometimes has to be copied by hand, and hands off to a browser; running
-//! that where nobody can see it produces a hang with no explanation.
+//! Signing in runs `gcloud auth login` directly, with no terminal window at
+//! all. gcloud opens your browser itself, which is the whole of the visible
+//! flow; a terminal alongside it only added a window to close afterwards.
+//!
+//! Closing that window turned out to be impossible to do honestly. Terminal
+//! refuses to close a window whose process is still running, and it refuses
+//! quietly: the AppleScript returns success and the window stays. Asking
+//! Terminal from outside is worse, because macOS then wants an automation
+//! grant this app otherwise never needs.
+//!
+//! So the output is captured instead. On success nothing appears, because the
+//! dot going green is the answer. On failure the reason is read out of the
+//! captured output and shown as a notification, which is the only case where
+//! any of it was worth reading.
 
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
-/// Open `gcloud auth login` in a terminal the user can watch.
-pub fn login(gcloud: &Path) -> std::io::Result<()> {
-    #[cfg(target_os = "macos")]
-    {
-        // A .command file opened with `open` needs no automation permission.
-        // Driving Terminal with AppleScript would trigger a TCC prompt, and
-        // this app is otherwise permission-free.
-        let script = format!(
-            "#!/bin/zsh\nclear\necho \"Signing in to gcloud\"\necho\n{} auth login\necho\n\
-             echo \"Done. The dot updates within a few seconds.\"\necho \"You can close this window.\"\n",
-            shell_quote(&gcloud.to_string_lossy())
-        );
-        let path = std::env::temp_dir().join("gcloud-dot-signin.command");
-        std::fs::write(&path, script)?;
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
-        Command::new("open").arg(&path).spawn()?;
-        Ok(())
+/// Start `gcloud auth login`, detached, with its output captured.
+///
+/// Returns the child so the caller can wait on it without blocking the event
+/// loop. gcloud launches the browser itself, so there is nothing for a user to
+/// watch in the meantime.
+pub fn login(gcloud: &Path) -> std::io::Result<std::process::Child> {
+    let log = login_log_path();
+    if let Some(dir) = log.parent() {
+        let _ = std::fs::create_dir_all(dir);
     }
+    let out = std::fs::File::create(&log)?;
+    let err = out.try_clone()?;
 
-    #[cfg(target_os = "windows")]
-    {
-        // /k keeps the window open so any error stays readable.
-        Command::new("cmd.exe")
-            .args(["/c", "start", "", "cmd.exe", "/k"])
-            .arg(format!("\"{}\" auth login", gcloud.display()))
-            .spawn()?;
-        Ok(())
-    }
+    let mut cmd = gcloud_dot_core::proc::quiet(gcloud);
+    cmd.args(["auth", "login"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(out))
+        .stderr(Stdio::from(err));
 
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let command = format!(
-            "{} auth login; echo; read -p 'Press enter to close'",
-            shell_quote(&gcloud.to_string_lossy())
-        );
-        // No portable way to ask for "the user's terminal", so try the ones
-        // that actually exist in the wild, most standard first.
-        let terminals: [(&str, Vec<&str>); 6] = [
-            ("x-terminal-emulator", vec!["-e", "sh", "-c"]),
-            ("gnome-terminal", vec!["--", "sh", "-c"]),
-            ("konsole", vec!["-e", "sh", "-c"]),
-            ("xfce4-terminal", vec!["-x", "sh", "-c"]),
-            ("alacritty", vec!["-e", "sh", "-c"]),
-            ("xterm", vec!["-e", "sh", "-c"]),
-        ];
-        for (bin, args) in terminals {
-            let mut cmd = Command::new(bin);
-            cmd.args(&args).arg(&command);
-            if cmd.spawn().is_ok() {
-                return Ok(());
-            }
-        }
-        // Headless or an unusual desktop: run it directly. gcloud falls back to
-        // printing a URL, which is still usable if stdout goes to a journal.
-        Command::new(gcloud)
-            .args(["auth", "login"])
-            .stdin(Stdio::null())
-            .spawn()?;
-        Ok(())
+    cmd.spawn()
+}
+
+/// Where the captured output of the last sign in attempt is kept.
+pub fn login_log_path() -> std::path::PathBuf {
+    gcloud_dot_core::paths::data_dir().join("last-signin.log")
+}
+
+/// The line worth showing a person when a sign in fails.
+///
+/// gcloud prints a banner, a stack of URLs, and then the sentence that matters,
+/// so the last non-empty line that is not a bare marker is a better answer than
+/// the first.
+pub fn failure_reason(output: &str) -> String {
+    let line = output
+        .lines()
+        .map(str::trim)
+        .rfind(|l| !l.is_empty() && !l.eq_ignore_ascii_case("error:"))
+        .unwrap_or("");
+    let cleaned = line.trim_start_matches("ERROR:").trim();
+    if cleaned.is_empty() {
+        return "gcloud did not say why.".to_string();
     }
+    let mut out: String = cleaned.chars().take(180).collect();
+    if cleaned.chars().count() > 180 {
+        out.push_str(" (truncated)");
+    }
+    out
 }
 
 /// Switch the active gcloud configuration.
 pub fn activate_config(gcloud: &Path, name: &str) -> std::io::Result<()> {
-    let status = Command::new(gcloud)
+    let status = gcloud_dot_core::proc::quiet(gcloud)
         .args(["config", "configurations", "activate", name])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -91,15 +87,15 @@ pub fn activate_config(gcloud: &Path, name: &str) -> std::io::Result<()> {
 /// Open a URL in the default browser.
 pub fn open_url(url: &str) -> std::io::Result<()> {
     #[cfg(target_os = "macos")]
-    let mut cmd = Command::new("open");
+    let mut cmd = gcloud_dot_core::proc::quiet("open");
     #[cfg(target_os = "windows")]
     let mut cmd = {
-        let mut c = Command::new("cmd.exe");
+        let mut c = gcloud_dot_core::proc::quiet("cmd.exe");
         c.args(["/c", "start", ""]);
         c
     };
     #[cfg(all(unix, not(target_os = "macos")))]
-    let mut cmd = Command::new("xdg-open");
+    let mut cmd = gcloud_dot_core::proc::quiet("xdg-open");
 
     cmd.arg(url)
         .stdout(Stdio::null())
@@ -108,28 +104,30 @@ pub fn open_url(url: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
-fn shell_quote(s: &str) -> String {
-    // Single quotes with an escape for embedded single quotes: the one form
-    // that is safe for every path a user can actually have.
-    format!("'{}'", s.replace('\'', r"'\''"))
-}
-
 #[cfg(test)]
 mod tests {
-    #[cfg(unix)]
     #[test]
-    fn paths_with_awkward_characters_survive_quoting() {
-        use super::shell_quote;
+    fn a_failure_reason_is_the_sentence_that_matters() {
+        // gcloud prints the banner and the URL first, and the explanation last,
+        // so the last meaningful line is the one a person needs.
+        let out = "Your browser has been opened to visit:\n\n                       https://accounts.google.com/o/oauth2/auth?x=1\n\n                   ERROR: (gcloud.auth.login) The browser window was closed.";
         assert_eq!(
-            shell_quote("/usr/local/bin/gcloud"),
-            "'/usr/local/bin/gcloud'"
+            super::failure_reason(out),
+            "(gcloud.auth.login) The browser window was closed."
         );
-        assert_eq!(
-            shell_quote("/Users/o'brien/sdk/gcloud"),
-            r"'/Users/o'\''brien/sdk/gcloud'"
-        );
-        // A space is the common case on macOS and must not split the command.
-        assert!(shell_quote("/Volumes/My Disk/gcloud").starts_with('\''));
+    }
+
+    #[test]
+    fn a_silent_failure_still_says_something() {
+        assert_eq!(super::failure_reason("   \n\n"), "gcloud did not say why.");
+        assert_eq!(super::failure_reason(""), "gcloud did not say why.");
+    }
+
+    #[test]
+    fn a_failure_reason_is_bounded() {
+        let out = format!("ERROR: {}", "x".repeat(400));
+        let r = super::failure_reason(&out);
+        assert!(r.chars().count() <= 192);
+        assert!(r.ends_with(" (truncated)"));
     }
 }

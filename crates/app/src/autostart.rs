@@ -130,7 +130,10 @@ fn enable() -> std::io::Result<()> {
         link.display(),
         exe.display()
     );
-    let status = std::process::Command::new("powershell")
+    // A plain, readable command line with the console suppressed. Not
+    // `-WindowStyle Hidden` and not `-EncodedCommand`: those two are the shape
+    // Defender scores as a dropper, and neither is needed to avoid the flash.
+    let status = gcloud_dot_core::proc::quiet("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", &script])
         .status()?;
     if status.success() {

@@ -9,7 +9,7 @@
 //! later, and effectively every Linux. Linking a TLS stack for one request a
 //! day would add more to the binary than the rest of the app puts together.
 
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Duration;
 
 const RELEASES_API: &str = "https://api.github.com/repos/nicglazkov/gcloud-dot/releases/latest";
@@ -18,7 +18,7 @@ pub const RELEASES_PAGE: &str = "https://github.com/nicglazkov/gcloud-dot/releas
 /// Returns the newer version's tag, or `None` if this build is current or the
 /// check could not be made.
 pub fn check() -> Option<String> {
-    let out = Command::new("curl")
+    let out = gcloud_dot_core::proc::quiet("curl")
         .args([
             "-fsSL",
             "--max-time",
