@@ -219,8 +219,18 @@ pub fn html(v: &PanelView) -> String {
       radial-gradient(70% 52% at 12% 0, var(--wash-a) 0, transparent 62%),
       radial-gradient(62% 48% at 95% 4%, var(--wash-b) 0, transparent 58%);
     font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-    -webkit-font-smoothing:antialiased; padding:18px; user-select:none;
-    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased; user-select:none;
+    /* A column with one scrolling region, rather than one long scrolling page.
+       The evidence cards grow without bound — twenty samples and ten logins —
+       and at 400 points wide they run past 1100, so on a page that simply
+       scrolled, Sign in and Check now would sit permanently below the fold. */
+    display:flex; flex-direction:column; overflow:hidden;
+  }}
+  .scroll {{ flex:1; overflow-y:auto; overflow-x:hidden; padding:18px 18px 4px; }}
+  .bottom {{
+    padding:11px 18px 14px; border-top:1px solid var(--rule);
+    background:var(--glass); backdrop-filter:blur(20px) saturate(170%);
+    -webkit-backdrop-filter:blur(20px) saturate(170%);
   }}
   .card {{
     background:var(--glass); border:1px solid var(--glass-line); border-radius:16px;
@@ -232,8 +242,12 @@ pub fn html(v: &PanelView) -> String {
          box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); flex:0 0 auto; }}
   .headline {{ font-size:27px; font-weight:640; letter-spacing:-.022em; line-height:1.1; }}
   .sub {{ color:var(--muted); font-size:12.5px; margin-top:3px; }}
-  .grid {{ display:grid; grid-template-columns:auto 1fr; gap:7px 16px; margin-top:15px;
-           padding-top:14px; border-top:1px solid var(--rule); font-size:13px; }}
+  /* minmax(0,1fr), not 1fr: a grid track's automatic minimum is its content
+     size, so a long account address or project id would push the row wider
+     than the window and clip every value on the right. */
+  .grid {{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:7px 16px;
+           margin-top:15px; padding-top:14px; border-top:1px solid var(--rule);
+           font-size:13px; }}
   .k {{ color:var(--faint); white-space:nowrap; }}
   .v {{ text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }}
   h2 {{ font-size:11px; text-transform:uppercase; letter-spacing:.075em; color:var(--faint);
@@ -263,10 +277,11 @@ pub fn html(v: &PanelView) -> String {
   button:hover {{ background:color-mix(in srgb, var(--accent) 12%, var(--soft)); }}
   button:active {{ transform:translateY(1px); }}
   button.primary {{ background:var(--accent); border-color:transparent; color:#fff; }}
-  footer {{ text-align:center; color:var(--faint); font-size:11px; margin-top:12px; }}
+  footer {{ text-align:center; color:var(--faint); font-size:11px; margin-top:9px; }}
   footer a {{ color:var(--faint); }}
 </style>
 
+<div class="scroll">
 <div class="card">
   <div class="head">
     <div class="dot"></div>
@@ -289,12 +304,15 @@ pub fn html(v: &PanelView) -> String {
   <h2>Recent logins</h2>
   <ul>{logins}</ul>
 </div>
-
-<div class="actions">
-  <button class="primary" onclick="send('login')">Sign in</button>
-  <button onclick="send('check')">Check now</button>
 </div>
-<footer>GCloud Dot {version} · <a href="#" onclick="send('website');return false">website</a></footer>
+
+<div class="bottom">
+  <div class="actions">
+    <button class="primary" onclick="send('login')">Sign in</button>
+    <button onclick="send('check')">Check now</button>
+  </div>
+  <footer>GCloud Dot {version} · <a href="#" onclick="send('website');return false">website</a></footer>
+</div>
 
 <script>
   function send(action) {{ window.ipc.postMessage(JSON.stringify({{action}})); }}
