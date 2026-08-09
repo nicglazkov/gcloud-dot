@@ -10,7 +10,7 @@
 	  never asked to grant anything.
 
 	  This file exists so the signing command has a stable, reviewable answer to
-	  "what does it ask for?" — namely, nothing.
+	  "what does it ask for?": nothing.
 	-->
 </dict>
 </plist>

@@ -102,13 +102,13 @@ pub fn status_text(status: &Status, _state: &State) -> String {
             let left = expiry - now;
             if left.num_seconds() >= 0 {
                 out.push_str(&format!(
-                    "  est. expiry   {} — {} left\n",
+                    "  est. expiry   {}, {} left\n",
                     expiry.format("%a %H:%M"),
                     long_duration(left)
                 ));
             } else {
                 out.push_str(&format!(
-                    "  est. expiry   {} — passed {}, still valid\n",
+                    "  est. expiry   {}, passed {}, still valid\n",
                     expiry.format("%a %H:%M"),
                     long_duration(-left)
                 ));
@@ -159,7 +159,7 @@ pub fn history_text(state: &State) -> String {
         let mut sorted = state.samples.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         out.push_str(&format!(
-            "  range {:.2}h – {:.2}h over {} samples\n\n",
+            "  range {:.2}h to {:.2}h over {} samples\n\n",
             sorted.first().copied().unwrap_or_default(),
             sorted.last().copied().unwrap_or_default(),
             sorted.len()
@@ -323,7 +323,7 @@ mod tests {
             state.record_sample(s);
         }
         let text = history_text(&state);
-        assert!(text.contains("15.91h – 16.08h"), "{text}");
+        assert!(text.contains("15.91h to 16.08h"), "{text}");
     }
 
     #[test]

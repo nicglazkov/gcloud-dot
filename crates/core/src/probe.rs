@@ -10,8 +10,8 @@ use std::time::Duration;
 /// What a probe actually established.
 ///
 /// The third variant is the one that keeps the app trustworthy. A probe that
-/// fails for a reason we do not recognise is *not* evidence of expiry — it is
-/// usually a dropped network — so it must not be allowed to turn the icon red.
+/// fails for a reason we do not recognise is *not* evidence of expiry, it is
+/// usually a dropped network, so it must not be allowed to turn the icon red.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProbeOutcome {
     /// A token came back. The credential is alive right now.
@@ -80,7 +80,7 @@ fn first_meaningful_line(stderr: &str) -> String {
         .trim();
     let mut out: String = line.chars().take(200).collect();
     if line.chars().count() > 200 {
-        out.push('…');
+        out.push_str(" (truncated)");
     }
     out
 }
@@ -249,7 +249,10 @@ mod tests {
     fn detail_is_bounded() {
         let stderr = format!("invalid_grant: {}", "x".repeat(500));
         match classify(false, "", &stderr) {
-            ProbeOutcome::Expired { detail } => assert!(detail.chars().count() <= 201),
+            ProbeOutcome::Expired { detail } => {
+                assert!(detail.chars().count() <= 212);
+                assert!(detail.ends_with(" (truncated)"));
+            }
             other => panic!("expected expiry, got {other:?}"),
         }
     }

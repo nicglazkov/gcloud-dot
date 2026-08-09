@@ -65,7 +65,7 @@ tmp="$(mktemp -d)"
 # shellcheck disable=SC2064
 trap "rm -rf '$tmp'" EXIT INT TERM
 
-say "  downloading…"
+say "  downloading"
 curl -fsSL -o "$tmp/pkg.tar.gz" "$url" || die "Download failed: $url"
 tar -xzf "$tmp/pkg.tar.gz" -C "$tmp"
 

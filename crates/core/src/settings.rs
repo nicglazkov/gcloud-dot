@@ -35,7 +35,7 @@ impl Theme {
 
     pub fn label(self) -> &'static str {
         match self {
-            Theme::System => "Match System",
+            Theme::System => "Match system",
             Theme::Light => "Light",
             Theme::Dark => "Dark",
         }
@@ -98,7 +98,7 @@ pub struct QuietHours {
 impl QuietHours {
     /// Whether a given local time falls inside the quiet window.
     ///
-    /// Windows that wrap past midnight are the normal case — 22:00 to 07:00 —
+    /// Windows that wrap past midnight are the normal case, 22:00 to 07:00,
     /// so the wrapping branch is the one to get right.
     pub fn contains(&self, now: NaiveTime) -> bool {
         let now = now.num_seconds_from_midnight();
@@ -163,7 +163,7 @@ impl Settings {
     /// Whether a notification may be shown right now.
     ///
     /// Quiet hours suppress the *notification*, never the state itself: the
-    /// icon still turns red at 3am, it simply does not make noise about it.
+    /// icon still turns red at 3am, it does not make noise about it.
     pub fn may_notify_at(&self, now: NaiveTime) -> bool {
         if !self.notifications_enabled {
             return false;

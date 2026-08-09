@@ -2,7 +2,7 @@
 //!
 //! Rendered in the system webview so it can share the visual language of the
 //! project's website rather than inventing a second one, and so the evidence
-//! behind the estimate — every sample, every login gap — can be laid out
+//! behind the estimate, every sample and every login gap, can be laid out
 //! properly instead of squeezed into menu rows.
 //!
 //! The document is built in two pieces: [`document`] for the initial load and
@@ -78,7 +78,7 @@ pub fn view(status: &Status, state: &State) -> PanelView {
     if let Some(start) = status.session_start {
         rows.push((
             "Last login".into(),
-            format!("{} · {}", start.format("%a %b %-d, %H:%M"), ago(start, now)),
+            format!("{}, {}", start.format("%a %b %-d, %H:%M"), ago(start, now)),
         ));
     }
     if status.auth == AuthState::Valid {
@@ -100,7 +100,7 @@ pub fn view(status: &Status, state: &State) -> PanelView {
             AuthState::Expired => "expired",
             AuthState::Unknown(_) => "unknown",
         };
-        rows.push(("App default creds".into(), format!("{word} · {kind}")));
+        rows.push(("App default creds".into(), format!("{word}, {kind}")));
     }
     if let Some(checked) = status.checked_at {
         rows.push((
@@ -267,6 +267,9 @@ button:active{transform:translateY(1px)}
 /* The primary action is always brand green, never the status colour. Painting
    "Sign in" red because the session expired reads as a destructive button. */
 button.primary{background:var(--brand); border-color:transparent; color:var(--brand-ink)}
+/* Quit is a real action but not the reason you opened the window, so it takes
+   less room than the two that are. */
+button.quit{flex:0 0 auto; padding:9px 14px; color:var(--muted)}
 button.primary:hover{filter:brightness(1.08)}
 footer{text-align:center; color:var(--faint); font-size:11px; margin-top:9px}
 footer a{color:var(--faint)}
@@ -364,9 +367,9 @@ pub fn body(v: &PanelView) -> String {
   <div class="actions">
     <button class="primary" onclick="send('login')">Sign in</button>
     <button onclick="send('check')">Check now</button>
+    <button class="quit" onclick="send('quit')">Quit</button>
   </div>
-  <footer>GCloud Dot {version} · <a href="#" onclick="send('website');return false">website</a>
-    · <a href="#" onclick="send('quit');return false">quit</a></footer>
+  <footer>GCloud Dot {version}, <a href="#" onclick="send('website');return false">website</a></footer>
 </div>"##,
         headline = esc(&v.headline),
         sub = esc(&v.sub),

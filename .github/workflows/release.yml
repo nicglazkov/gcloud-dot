@@ -109,7 +109,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
         run: |
-          brew install create-dmg
+          python3 -m pip install --break-system-packages --quiet dmgbuild
           if [ -n "$ASC_KEY_P8" ]; then
             echo "$ASC_KEY_P8" | base64 --decode > /tmp/asc.p8
             cat > signing.env <<EOF
@@ -123,7 +123,7 @@ jobs:
             mv GCloud-Dot-*.dmg dist/
           else
             # Build it anyway, so a packaging break is caught here rather than
-            # at release time — but do not publish it. An unsigned DMG that
+            # at release time, but do not publish it. An unsigned DMG that
             # looks official is worse than no DMG: it trains people to click
             # through the one warning that is supposed to mean something.
             echo "::warning::No signing secrets. Building the app to prove it packages, but not publishing a DMG."

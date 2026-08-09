@@ -16,7 +16,7 @@ pub fn login(gcloud: &Path) -> std::io::Result<()> {
         // Driving Terminal with AppleScript would trigger a TCC prompt, and
         // this app is otherwise permission-free.
         let script = format!(
-            "#!/bin/zsh\nclear\necho \"Signing in to gcloud…\"\necho\n{} auth login\necho\n\
+            "#!/bin/zsh\nclear\necho \"Signing in to gcloud\"\necho\n{} auth login\necho\n\
              echo \"Done. The dot updates within a few seconds.\"\necho \"You can close this window.\"\n",
             shell_quote(&gcloud.to_string_lossy())
         );
@@ -41,7 +41,7 @@ pub fn login(gcloud: &Path) -> std::io::Result<()> {
     #[cfg(all(unix, not(target_os = "macos")))]
     {
         let command = format!(
-            "{} auth login; echo; read -p 'Press enter to close…'",
+            "{} auth login; echo; read -p 'Press enter to close'",
             shell_quote(&gcloud.to_string_lossy())
         );
         // No portable way to ask for "the user's terminal", so try the ones

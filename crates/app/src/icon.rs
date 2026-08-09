@@ -1,8 +1,8 @@
 //! Draws the tray icon.
 //!
 //! The countdown is rendered into the bitmap on Windows and Linux because
-//! neither platform gives a tray icon a text slot. macOS does — `NSStatusItem`
-//! has a title beside the image — so there the icon stays a plain dot and the
+//! neither platform gives a tray icon a text slot. macOS does, `NSStatusItem`
+//! has a title beside the image, so there the icon stays a plain dot and the
 //! text is set natively, which is what every other menu bar app does and what
 //! the system expects when it truncates the bar.
 

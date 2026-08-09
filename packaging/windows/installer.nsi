@@ -1,4 +1,4 @@
-; GCloud Dot — per-user Windows installer.
+; GCloud Dot, per-user Windows installer.
 ;
 ; Installs into LOCALAPPDATA and writes only under HKCU, so it never asks for
 ; administrator rights. A tray utility that demands elevation to install is

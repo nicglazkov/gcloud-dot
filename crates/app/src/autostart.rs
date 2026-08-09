@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-/// The LaunchAgent label, which is also the bundle identifier — shared with the
+/// The LaunchAgent label, which is also the bundle identifier, shared with the
 /// app this one replaces so macOS treats the upgrade as the same application
 /// rather than a second one.
 ///

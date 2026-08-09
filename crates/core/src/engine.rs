@@ -3,7 +3,7 @@
 //! Deliberately free of threads, timers, and process spawning. The engine says
 //! *what* should happen next and interprets what came back; the app crate does
 //! the blocking work on a worker thread. That split is what lets the whole
-//! sequence — including a session expiring while the machine was asleep — be
+//! sequence, including a session expiring while the machine was asleep, be
 //! tested in microseconds.
 
 use crate::config::ActiveConfig;

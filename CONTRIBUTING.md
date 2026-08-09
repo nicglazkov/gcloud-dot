@@ -10,7 +10,7 @@ cd gcloud-dot
 cargo test --workspace
 ```
 
-Rust 1.89 or later — the single-instance lock uses `File::try_lock` from the
+Rust 1.89 or later, the single-instance lock uses `File::try_lock` from the
 standard library, which stabilised there.
 
 On Linux the tray needs system libraries:
@@ -20,8 +20,7 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
   libayatana-appindicator3-dev libxdo-dev libdbus-1-dev
 ```
 
-The `gcloud-dot` command needs none of them. Keeping it that way matters —
-CI builds it on a machine with no desktop libraries specifically to catch a GUI
+The `gcloud-dot` command needs none of them. Keeping it that way matters, CI builds it on a machine with no desktop libraries specifically to catch a GUI
 dependency leaking into the core.
 
 ## Layout
@@ -35,8 +34,7 @@ crates/app    the tray, the menu, and the details window
 `core` owns every decision and knows nothing about windows, timers, or
 processes. The engine says *what* should happen next and interprets what came
 back; `app` does the blocking work on a worker thread. That split is what lets
-the whole behaviour — including a session expiring while the machine was asleep
-— be tested in microseconds.
+the whole behaviour, including a session expiring while the machine was asleep, be tested in microseconds.
 
 **New logic belongs in `core`, with a test.** If something can only be verified
 by launching the app and looking at it, it is in the wrong crate.
@@ -79,7 +77,7 @@ what the app actually draws.
 ## Style
 
 Match what is there. Comments explain *why* a thing is the way it is, especially
-where the obvious approach is wrong — those comments are load-bearing and
+where the obvious approach is wrong, those comments are load-bearing and
 several of them record a bug that was actually hit.
 
 ## Releasing
@@ -93,13 +91,20 @@ requires a graphical confirmation that a headless runner cannot give, so rather
 than keep a certificate in Actions secrets, the disk image is built locally:
 
 ```sh
-cp signing.env.example signing.env    # fill in your identity and API key
-make dist-macos                       # sign, notarize, staple, package, verify
+python3 -m pip install --user dmgbuild   # builds the installer window
+cp signing.env.example signing.env       # fill in your identity and API key
+make dist-macos                          # sign, notarize, staple, package, verify
 gh release upload vX.Y.Z GCloud-Dot-X.Y.Z.dmg
 ```
 
+The installer window is laid out by `dmgbuild`, which writes the `.DS_Store`
+directly. `create-dmg` drives Finder over AppleScript to place the icons, which
+needs a GUI session and an automation grant, so it cannot run unattended. The
+background is drawn by `make dmg-background`, from the same code that draws the
+tray icons.
+
 CI still builds and packages the macOS app on every release, so a packaging
-break is caught at the normal time — it simply deletes the unsigned disk image
+break is caught at the normal time, it simply deletes the unsigned disk image
 instead of publishing it. An unsigned DMG that looks official is worse than no
 DMG, because it teaches people to click through the one warning that is meant
 to mean something.

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 /// `CLOUDSDK_CONFIG` overrides the default everywhere and is how people run
 /// several isolated SDK installs side by side, so it is checked first. Missing
 /// that, gcloud uses `%APPDATA%\gcloud` on Windows and `~/.config/gcloud`
-/// elsewhere — note that it is `.config` even on macOS, where an application
+/// elsewhere, note that it is `.config` even on macOS, where an application
 /// would normally use Application Support.
 pub fn gcloud_config_dir() -> Option<PathBuf> {
     if let Some(explicit) = std::env::var_os("CLOUDSDK_CONFIG") {
@@ -71,7 +71,7 @@ pub fn state_path() -> PathBuf {
 ///
 /// A file rather than a signal or a socket because it is the only mechanism
 /// that behaves the same on all three platforms with no dependency, and because
-/// the tray is already waking on a timer — it costs one `exists` call per tick.
+/// the tray is already waking on a timer, it costs one `exists` call per tick.
 ///
 /// This matters more than it sounds: if the menu bar is full, macOS stops
 /// drawing the icon, and the menu holding "Quit" becomes unreachable. Without

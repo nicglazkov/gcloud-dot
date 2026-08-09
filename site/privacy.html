@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Privacy — GCloud Dot</title>
+<title>Privacy, GCloud Dot</title>
 <meta name="description" content="GCloud Dot has no account, no telemetry, and no server. What it stores, where, and what leaves your machine.">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="stylesheet" href="style.css">
@@ -40,8 +40,7 @@
     <h2>What leaves your machine</h2>
     <h3 class="sub">Google, by way of gcloud</h3>
     <p>Every ten minutes GCloud Dot runs <code>gcloud auth print-access-token</code>.
-    That command talks to Google exactly as it does when you run it yourself —
-    the app adds no traffic of its own and sees no credential material beyond
+    That command talks to Google exactly as it does when you run it yourself, the app adds no traffic of its own and sees no credential material beyond
     whether the command succeeded. Nothing about that request is reported
     anywhere else.</p>
 
@@ -60,9 +59,9 @@
     <h2>What is stored, and where</h2>
     <p>One JSON file, written by you and readable by you:</p>
     <ul>
-      <li><b>macOS</b> — <code>~/Library/Application Support/GCloudDot/state.json</code></li>
-      <li><b>Windows</b> — <code>%LOCALAPPDATA%\GCloudDot\state.json</code></li>
-      <li><b>Linux</b> — <code>~/.local/share/gcloud-dot/state.json</code></li>
+      <li><b>macOS</b>, <code>~/Library/Application Support/GCloudDot/state.json</code></li>
+      <li><b>Windows</b>, <code>%LOCALAPPDATA%\GCloudDot\state.json</code></li>
+      <li><b>Linux</b>, <code>~/.local/share/gcloud-dot/state.json</code></li>
     </ul>
     <p>It holds the times of your recent <code>gcloud auth login</code> runs, the
     session lengths that have been observed, which warnings have already been
@@ -93,14 +92,14 @@
     from nothing. To remove that too:</p>
     <pre><code>sh uninstall.sh --purge</code></pre>
     <p>Or delete the directory above by hand. Nothing survives elsewhere.</p>
-    <p class="updated">This page describes GCloud Dot 1.0.1.</p>
+    <p class="updated">This page describes GCloud Dot 1.0.2.</p>
   </section>
 
   <footer>
     <p>
-      <a href="index.html">Home</a> ·
-      <a href="requirements.html">Requirements</a> ·
-      <a href="security.html">Security</a> ·
+      <a href="index.html">Home</a> |
+      <a href="requirements.html">Requirements</a> |
+      <a href="security.html">Security</a> |
       <a href="https://github.com/nicglazkov/gcloud-dot">Source</a>
     </p>
   </footer>

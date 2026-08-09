@@ -1,19 +1,19 @@
-# GCloud Dot — design notes
+# GCloud Dot, design notes
 
 Written 8 August 2026, for version 1.0.0. This records what the app does and,
 more usefully, why several obvious approaches are wrong.
 
 ## The problem
 
-Google enforces a reauth session on `gcloud` credentials — sixteen hours by
-default on Workspace accounts — and exposes no deadline to the client. The
+Google enforces a reauth session on `gcloud` credentials, sixteen hours by
+default on Workspace accounts, and exposes no deadline to the client. The
 session length is enforced server side and never handed over. There is nothing
 to read, so a client that wants to warn you has to infer it.
 
 Two predecessors informed this design: a Swift menu bar app installed by a shell
 script on macOS, and a PowerShell tray app on Windows. Both worked. The Windows
-one was substantially more capable, and its state file — eighteen observed
-sessions, every one between 15.91h and 16.08h — is the evidence that the
+one was substantially more capable, and its state file, eighteen observed
+sessions, every one between 15.91h and 16.08h, is the evidence that the
 learning approach converges.
 
 ## The governing distinction
@@ -39,7 +39,7 @@ cries wolf is a dot people stop believing.
 
 ```
 crates/core   engine, no threads, no timers, no windows
-crates/cli    gcloud-dot — no GUI dependency, builds headless
+crates/cli    gcloud-dot, no GUI dependency, builds headless
 crates/app    tray (tray-icon + muda), panel (wry), notifications
 ```
 
@@ -49,7 +49,7 @@ came back and return events. The app crate owns the event loop and runs the
 blocking work on short-lived worker threads.
 
 That split is the reason 120+ tests run in milliseconds on every platform,
-including cases that would otherwise need a day of wall-clock time — a session
+including cases that would otherwise need a day of wall-clock time, a session
 expiring, a machine asleep through two warning thresholds, quiet hours
 deferring an expiry notice.
 
@@ -58,7 +58,7 @@ deferring an expiry notice.
 `tray-icon` wraps `NSStatusItem`, `Shell_NotifyIcon`, and
 `libayatana-appindicator` behind one API, and all three accept an RGBA bitmap.
 That is what makes the Windows countdown-on-icon trick portable unchanged. The
-alternative — three implementations of the estimator — guarantees they drift.
+alternative, three implementations of the estimator, guarantees they drift.
 
 Windows have no such convergence, so the details panel uses the system webview
 and inherits the website's CSS. The tray itself stays fully native.
@@ -80,7 +80,7 @@ Ten minutes normally, two minutes inside the last half hour. The sample that
 trains the next estimate is taken exactly when accuracy matters, and the app
 spends nothing the rest of the day.
 
-Once the credential is known expired the interval relaxes again — there is
+Once the credential is known expired the interval relaxes again, there is
 nothing left to measure.
 
 ### Require two markers to count a login
@@ -119,12 +119,12 @@ bitmap.
 
 Only a real countdown earns that space. `!` beside a red dot and `?` beside a
 grey one repeat what the colour already said, and every character is taken from
-the menu bar's fixed width — permanently, on a notched Mac.
+the menu bar's fixed width, permanently, on a notched Mac.
 
 ### Quiet hours suppress warnings but consume them; they defer expiry notices
 
 An early warning that arrives six hours late quotes a number that is now wrong,
-and the icon has been carrying the same information the whole time — so a
+and the icon has been carrying the same information the whole time, so a
 threshold crossed during quiet hours is marked as fired and never shown.
 
 An expiry notice is different: it names no time, so it cannot go stale. It is
@@ -145,7 +145,7 @@ every Linux.
 
 ### Migrate the predecessors' state
 
-Session samples cost real wall-clock time — eighteen of them means three weeks
+Session samples cost real wall-clock time, eighteen of them means three weeks
 of running the old tray. Discarding that on upgrade would make the new app worse
 than the one it replaces on day one. Migration runs once, only when there is no
 history of our own, and never overwrites.

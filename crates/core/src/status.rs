@@ -74,7 +74,7 @@ pub struct Status {
     pub checked_at: Option<DateTime<Local>>,
     /// Why the last probe was inconclusive, if it was. Present alongside a
     /// still-valid `auth`, because an unreachable network does not revoke a
-    /// credential — it only stops us confirming one.
+    /// credential, it only stops us confirming one.
     pub probe_note: Option<String>,
 }
 
@@ -118,7 +118,7 @@ impl Status {
             AuthState::Unknown(_) => Level::Unknown,
             AuthState::Valid => match self.remaining(now) {
                 // A valid session with no history is genuinely fine; there is
-                // simply no countdown to show.
+                // no countdown to show.
                 None => Level::Ok,
                 Some(left) => {
                     let mins = left.num_minutes();
@@ -154,7 +154,7 @@ impl Status {
         let base = self.summary_without_note(now);
         match &self.probe_note {
             Some(note) if self.auth == AuthState::Valid => {
-                format!("{base} — last check inconclusive: {note}")
+                format!("{base}, last check inconclusive: {note}")
             }
             _ => base,
         }
@@ -165,17 +165,17 @@ impl Status {
             return "gcloud is not installed on this machine".into();
         }
         match &self.auth {
-            AuthState::Expired => "signed out — run gcloud auth login".into(),
+            AuthState::Expired => "signed out, run gcloud auth login".into(),
             AuthState::Unknown(why) => format!("status unknown ({why})"),
             AuthState::Valid => match self.remaining(now) {
                 None => "signed in (no login history yet)".into(),
                 Some(left) if left.num_seconds() >= 0 => format!(
-                    "signed in — about {} left ({})",
+                    "signed in, about {} left ({})",
                     long_duration(left),
                     self.estimate.source.label()
                 ),
                 Some(left) => format!(
-                    "signed in — {} past the estimate, still valid",
+                    "signed in, {} past the estimate, still valid",
                     long_duration(-left)
                 ),
             },

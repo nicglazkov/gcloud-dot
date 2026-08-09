@@ -1,4 +1,4 @@
-//! GCloud Dot — the menu bar and system tray app.
+//! GCloud Dot, the menu bar and system tray app.
 //!
 //! Structure: one event loop on the main thread owns all UI, and every
 //! blocking operation (running gcloud, walking the log directory) happens on a
@@ -32,7 +32,7 @@ use std::time::Duration;
 use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
 use tao::window::{Window, WindowBuilder};
-use tray_icon::{menu::MenuEvent, TrayIcon, TrayIconBuilder, TrayIconEvent};
+use tray_icon::{menu::MenuEvent, TrayIcon, TrayIconBuilder};
 use wry::WebView;
 
 /// How often the loop wakes to consider doing something. The engine decides
@@ -44,7 +44,6 @@ enum UserEvent {
     Tick,
     Work(Box<WorkResult>),
     Menu(String),
-    TrayClicked,
     Panel(String),
     UpdateFound(String),
 }
@@ -138,21 +137,6 @@ fn main() {
     }
     {
         let proxy = proxy.clone();
-        TrayIconEvent::set_event_handler(Some(move |e: TrayIconEvent| {
-            // Only a left click on the icon itself opens the panel; the menu
-            // handles everything else.
-            if let TrayIconEvent::Click {
-                button: tray_icon::MouseButton::Left,
-                button_state: tray_icon::MouseButtonState::Up,
-                ..
-            } = e
-            {
-                let _ = proxy.send_event(UserEvent::TrayClicked);
-            }
-        }));
-    }
-    {
-        let proxy = proxy.clone();
         std::thread::spawn(move || loop {
             std::thread::sleep(TICK);
             if proxy.send_event(UserEvent::Tick).is_err() {
@@ -224,7 +208,7 @@ fn main() {
                 app.refresh_ui();
                 // The menu shows the last-checked time and the ADC state, and
                 // neither appears in the tooltip that `refresh_ui` compares
-                // against — so a probe that changed only those would otherwise
+                // against, so a probe that changed only those would otherwise
                 // leave the menu quoting the previous check.
                 app.rebuild_menu();
                 app.refresh_panel();
@@ -233,8 +217,6 @@ fn main() {
             Event::UserEvent(UserEvent::Menu(id)) => {
                 app.on_menu(&id, target, control_flow, &proxy);
             }
-
-            Event::UserEvent(UserEvent::TrayClicked) => app.toggle_panel(target),
 
             Event::UserEvent(UserEvent::Panel(message)) => {
                 app.on_panel_message(&message, &proxy);
@@ -272,12 +254,6 @@ impl App {
             .with_tooltip("GCloud Dot");
         if let Some(image) = image {
             builder = builder.with_icon(image);
-        }
-        // On macOS the menu must not also open on a left click, or the click
-        // handler that opens the panel never fires.
-        #[cfg(target_os = "macos")]
-        {
-            builder = builder.with_menu_on_left_click(false);
         }
         match builder.build() {
             Ok(tray) => self.tray = Some(tray),
@@ -382,7 +358,7 @@ impl App {
         //
         // Only a real countdown earns the space. "!" beside a red dot and "?"
         // beside a grey one repeat what the colour already said, and every
-        // character here is taken from the menu bar's fixed width — on a
+        // character here is taken from the menu bar's fixed width, on a
         // notched Mac, permanently.
         let show_text = cfg!(target_os = "macos")
             && self.engine.state.settings.show_countdown_text
@@ -418,7 +394,7 @@ impl App {
 
         // Rebuilt whenever anything drawn has changed, not only on a colour
         // change. muda has no will-open hook, so a menu built once would still
-        // be claiming "about 14h left" three hours later — and the menu is the
+        // be claiming "about 14h left" three hours later, and the menu is the
         // only place the account, project, and estimate are readable at all.
         //
         // The tooltip carries minute precision, so in practice this fires about
@@ -600,7 +576,7 @@ impl App {
                 // A window nobody can reach with the app switcher is a window
                 // people lose. macOS hides accessory apps from Cmd-Tab and the
                 // Dock, so become a regular app for as long as this is open and
-                // step back out when it closes — the Dock icon appears only
+                // step back out when it closes, the Dock icon appears only
                 // while there is something to switch to. Windows and Linux put
                 // any real window in Alt-Tab already.
                 set_app_switcher_visible(target, true);

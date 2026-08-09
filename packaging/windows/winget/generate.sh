@@ -19,7 +19,7 @@ mkdir -p "$OUT"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "downloading the published installer…"
+echo "downloading the published installer"
 curl -fsSL -o "$tmp/setup.exe" "$URL"
 SHA="$(shasum -a 256 "$tmp/setup.exe" | cut -d' ' -f1 | tr '[:lower:]' '[:upper:]')"
 echo "sha256 $SHA"

@@ -22,7 +22,7 @@
 
 <br>
 
-Google enforces a reauth session on `gcloud` — sixteen hours by default — and
+Google enforces a reauth session on `gcloud`, sixteen hours by default, and
 tells your machine nothing about it. There is no deadline to read, no warning,
 and no indicator. You find out when a command fails, usually in the middle of
 something else.
@@ -48,7 +48,7 @@ It reports **two different things** and never lets you confuse them.
 
 **Whether you are signed in is measured.** Every ten minutes it runs
 `gcloud auth print-access-token`. A token means alive. An `invalid_grant` or a
-reauth error means gone. Anything else — a timeout, a captive portal — is
+reauth error means gone. Anything else (a timeout, a captive portal) is
 reported as *unknown* and leaves the previous verdict standing. A dropped
 network never turns the dot red, because a dot that cries wolf is a dot you stop
 believing.
@@ -61,7 +61,7 @@ observations the countdown is the median of them; before that it falls back to
 the gaps between your past logins, and tells you it is doing so.
 
 On the machine this was developed against, eighteen observed sessions landed
-between **15.91h** and **16.08h** — converging, without being told, on Google's
+between **15.91h** and **16.08h**, converging, without being told, on Google's
 documented sixteen-hour default.
 
 <br>
@@ -87,7 +87,7 @@ irm https://raw.githubusercontent.com/nicglazkov/gcloud-dot/main/install/install
 
 Or run the installer from the releases page. It installs per user and never asks
 for administrator rights. It is not code-signed yet, so SmartScreen shows
-*"Windows protected your PC"* — click **More info**, then **Run anyway**.
+*"Windows protected your PC"*, click **More info**, then **Run anyway**.
 
 **Linux**
 
@@ -124,12 +124,12 @@ add `--no-gui` to install only the command.
 
 ```console
 $ gcloud-dot
-🟢 signed in — about 14h 12m left (measured, n=18)
+🟢 signed in, about 14h 12m left (measured, n=18)
   account       nic@glazkov.com
   project       my-project
   configuration default
   last login    Fri Aug 8, 06:31 (2h ago)
-  est. expiry   Fri 22:33 — 14h 12m left
+  est. expiry   Fri 22:33, 14h 12m left
   session       16.1h (measured, n=18)
 ```
 
@@ -148,8 +148,8 @@ $ gcloud-dot
 drawing the icon, and the menu holding Quit goes with it. The panel has a quit
 link too, and while it is open the app is a normal application, so ⌘Q works.
 
-Exit codes are part of the interface — `0` signed in, `1` signed out, `2`
-unknown — so a shell prompt or a CI step can branch without parsing anything.
+Exit codes are part of the interface (`0` signed in, `1` signed out, `2`
+unknown), so a shell prompt or a CI step can branch without parsing anything.
 The JSON includes `estimate_is_measured`, so a consumer can tell a measurement
 from a guess.
 
@@ -158,9 +158,9 @@ from a guess.
 ## How it finds your session
 
 gcloud writes a log for every command it runs. GCloud Dot scans those logs for
-*completed* `gcloud auth login` invocations — requiring both the invocation
+*completed* `gcloud auth login` invocations, requiring both the invocation
 marker and a completion marker, so an abandoned login is not mistaken for a
-session start — and rescans once a minute. Signing in from any terminal resets
+session start, and rescans once a minute. Signing in from any terminal resets
 the countdown within a minute, without telling the app anything.
 
 Two details that decide whether the numbers are any good:
@@ -169,8 +169,8 @@ Two details that decide whether the numbers are any good:
   last successful check and the first failed one, not at the failure. That
   halves the error instead of overstating every session by one full polling
   interval.
-- **Polling tightens near the predicted expiry** — from ten minutes to two
-  inside the last half hour — so the measurement that trains the next estimate
+- **Polling tightens near the predicted expiry**, from ten minutes to two
+  inside the last half hour, so the measurement that trains the next estimate
   is the most accurate one it takes.
 
 Refreshing an access token does **not** extend a reauth session; its length is
@@ -199,7 +199,7 @@ crates/app    the tray, the menu, and the details window
 ```
 
 Everything that makes a decision lives in `core` and is tested without a window,
-a timer, or a subprocess — including a session expiring while the machine was
+a timer, or a subprocess, including a session expiring while the machine was
 asleep.
 
 <br>

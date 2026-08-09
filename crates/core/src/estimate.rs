@@ -19,7 +19,7 @@ const PLAUSIBLE_SAMPLE_HOURS: std::ops::Range<f64> = 1.0..168.0;
 
 /// Gaps between logins only mean something inside the window where a forced
 /// reauth is the likely cause. Shorter and it is someone switching accounts;
-/// longer and they simply did not work that day.
+/// longer and they did not work that day.
 const PLAUSIBLE_GAP_HOURS: std::ops::Range<f64> = 6.0..36.0;
 
 /// Keeping more samples than this would let a policy change from six months ago
@@ -170,7 +170,7 @@ mod tests {
 
     /// The 18 samples this machine's Windows tray had accumulated by August
     /// 2026. Every one lands within ten minutes of 16 hours, which is Google's
-    /// documented default reauth policy — the estimator agreeing with the
+    /// documented default reauth policy, the estimator agreeing with the
     /// published number is the strongest evidence available that it works.
     const REAL_SAMPLES: [f64; 18] = [
         15.93, 16.07, 16.08, 15.91, 15.96, 15.91, 15.92, 16.07, 16.07, 15.93, 15.92, 16.06, 16.07,

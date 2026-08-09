@@ -100,7 +100,7 @@ impl State {
 ///
 /// Windows PowerShell 5.1 writes one for `Set-Content -Encoding UTF8`, so every
 /// state file the PowerShell tray ever wrote begins with U+FEFF. `read_to_string`
-/// accepts those bytes happily — they are well-formed UTF-8 — and then
+/// accepts those bytes happily, they are well-formed UTF-8, and then
 /// `serde_json` rejects the document at byte zero. The failure is silent,
 /// because a legacy file that cannot be parsed is indistinguishable from one
 /// that is not there.
@@ -121,7 +121,7 @@ struct LegacyWindowsState {
 
 /// Adopt whatever the previous apps had learned.
 ///
-/// Session samples cost real wall-clock time to gather — a user with eighteen
+/// Session samples cost real wall-clock time to gather, a user with eighteen
 /// of them has been running the old tray for three weeks. Throwing that away on
 /// upgrade would make the new app worse than the one it replaces on day one.
 pub fn migrate_legacy(state: &mut State) -> Option<String> {
@@ -290,7 +290,7 @@ mod tests {
         // Windows PowerShell 5.1 writes a UTF-8 BOM for `Set-Content -Encoding
         // UTF8`, so every file the previous tray produced starts with one.
         // Without stripping it, serde_json fails at byte zero and the whole
-        // migration is skipped in silence — which is exactly what happened on
+        // migration is skipped in silence, which is exactly what happened on
         // a real machine holding eighteen hard-won samples.
         let raw = "\u{feff}{\"logins\":[],\"samples\":[16.06,16.07,15.91]}";
         let legacy: LegacyWindowsState = serde_json::from_str(strip_bom(raw)).unwrap();

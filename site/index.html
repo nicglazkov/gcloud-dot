@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>GCloud Dot — know before your gcloud session expires</title>
+<title>GCloud Dot, know before your gcloud session expires</title>
 <meta name="description" content="A menu bar and system tray dot that shows whether your gcloud auth session is alive and roughly how long it has left. macOS, Windows, Linux. Free and MIT licensed.">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="img/favicon.png" type="image/png">
@@ -49,7 +49,7 @@
       <a class="fill" href="#install">Install GCloud Dot</a>
       <a class="ghost" href="https://github.com/nicglazkov/gcloud-dot">See the source</a>
     </div>
-    <p class="fineprint">macOS, Windows, Linux · MIT licensed · no account, no telemetry</p>
+    <p class="fineprint">macOS, Windows, Linux | MIT licensed | no account, no telemetry</p>
   </header>
 
   <section class="panel">
@@ -65,7 +65,7 @@
     <p><strong>Red is always a fact.</strong> It appears only after a real
     <code>gcloud</code> command has come back refusing the credential. A dropped
     network never turns the dot red, because "I could not reach Google" is not
-    the same as "you are signed out" — and a dot that cries wolf is a dot you
+    the same as "you are signed out", and a dot that cries wolf is a dot you
     learn to ignore.</p>
     <p><strong>The countdown is always an estimate,</strong> and the app says so
     everywhere it shows one. Google does not publish your session deadline to
@@ -89,7 +89,7 @@
       <div class="dlrow">
         <a class="dl primary" data-asset=".dmg" href="https://github.com/nicglazkov/gcloud-dot/releases/latest">
           <span class="t">Download the DMG</span>
-          <span class="s">macOS 13 or later · Apple silicon and Intel</span>
+          <span class="s">macOS 13 or later | Apple silicon and Intel</span>
         </a>
       </div>
       <p class="dlnote">Open the disk image and drag GCloud Dot to Applications.
@@ -106,7 +106,7 @@
       <div class="dlrow">
         <a class="dl primary" data-asset="setup.exe" href="https://github.com/nicglazkov/gcloud-dot/releases/latest">
           <span class="t">Download the installer</span>
-          <span class="s">Windows 10 1809 or later · 64 bit</span>
+          <span class="s">Windows 10 1809 or later | 64 bit</span>
         </a>
       </div>
       <p class="dlnote">The installer writes only inside your user account and never
@@ -127,7 +127,7 @@
         </a>
         <a class="dl second" data-asset=".AppImage" href="https://github.com/nicglazkov/gcloud-dot/releases/latest">
           <span class="t">Download the AppImage</span>
-          <span class="s">Everything else · x86-64</span>
+          <span class="s">Everything else | x86-64</span>
         </a>
       </div>
       <h3>Shell</h3>
@@ -154,8 +154,8 @@
         <h3>Measuring, for the state</h3>
         <p>Every ten minutes it runs <code>gcloud auth print-access-token</code>.
         A token means the credential is alive. An <code>invalid_grant</code> or
-        a reauth error means it is gone. Anything else — a timeout, a captive
-        portal — is reported as unknown and leaves the previous verdict standing.</p>
+        a reauth error means it is gone. Anything else (a timeout, a captive
+        portal) is reported as unknown and leaves the previous verdict standing.</p>
       </div>
       <div class="chip">
         <h3>Learning, for the countdown</h3>
@@ -174,13 +174,13 @@
     often, so the measurement that trains the next estimate is the most accurate
     one it takes.</p>
     <p>On the machine this was built against, eighteen observed sessions landed
-    between <b>15.91h</b> and <b>16.08h</b> — converging, without being told, on
+    between <b>15.91h</b> and <b>16.08h</b>, converging, without being told, on
     Google's documented sixteen-hour default.</p>
 
     <h3 class="sub">It reads your login history from gcloud's own logs</h3>
     <p>gcloud writes a log for every command it runs. GCloud Dot looks for
     completed <code>gcloud auth login</code> invocations to find when your
-    current session began, and rescans once a minute — so signing in from any
+    current session began, and rescans once a minute, so signing in from any
     terminal, on any tab, resets the countdown within a minute without you
     telling the app anything.</p>
   </section>
@@ -195,7 +195,7 @@
     GCloud Dot tracks them alongside your login and reports them separately, so
     the answer takes a glance instead of half an hour.</p>
     <p>It will also tell you when a service account key file has been sitting
-    unrotated for months — reported honestly as the file's age, since a
+    unrotated for months, reported honestly as the file's age, since a
     downloaded key carries no creation date to read.</p>
   </section>
 
@@ -203,15 +203,15 @@
     <h2>There is a command, too</h2>
     <p class="note">The same engine, for prompts, scripts, and machines with no desktop.</p>
     <pre><code>$ gcloud-dot
-🟢 signed in — about 14h 12m left (measured, n=18)
+🟢 signed in, about 14h 12m left (measured, n=18)
   account       nic@glazkov.com
   project       my-project
   configuration default
   last login    Fri Aug 8, 06:31 (2h ago)
-  est. expiry   Fri 22:33 — 14h 12m left
+  est. expiry   Fri 22:33, 14h 12m left
   session       16.1h (measured, n=18)</code></pre>
-    <p>Exit codes are part of the interface — <code>0</code> signed in,
-    <code>1</code> signed out, <code>2</code> unknown — so a shell prompt or a
+    <p>Exit codes are part of the interface (<code>0</code> signed in,
+    <code>1</code> signed out, <code>2</code> unknown), so a shell prompt or a
     CI step can branch on it without parsing anything.
     <code>--json</code> gives a stable document including
     <code>estimate_is_measured</code>, so anything consuming it can tell a
@@ -237,7 +237,7 @@
     <p>Nothing. There is no account, no telemetry, and no server. The only
     network traffic is <code>gcloud</code> talking to Google exactly as it
     already does, plus one request a day to GitHub's releases API to see whether
-    a newer version exists — which you can turn off.</p></details>
+    a newer version exists, which you can turn off.</p></details>
 
     <details class="qa"><summary>Does it need any permissions?</summary>
     <p>None. No Accessibility, no Screen Recording, no administrator rights on
@@ -246,8 +246,8 @@
 
     <details class="qa"><summary>Will it update itself?</summary>
     <p>It checks and tells you; it never replaces its own files. On every
-    platform something else owns those files — Homebrew, winget, apt, the
-    installer — and a self-updater writing over them leaves your package manager
+    platform something else owns those files, Homebrew, winget, apt, the
+    installer, and a self-updater writing over them leaves your package manager
     describing a version that is no longer on disk.</p></details>
 
     <details class="qa"><summary>I used the older script installer. What happens?</summary>
@@ -260,10 +260,10 @@
 
   <footer>
     <p>
-      <a href="https://github.com/nicglazkov/gcloud-dot">Source</a> ·
-      <a href="requirements.html">Requirements</a> ·
-      <a href="privacy.html">Privacy</a> ·
-      <a href="security.html">Security</a> ·
+      <a href="https://github.com/nicglazkov/gcloud-dot">Source</a> |
+      <a href="requirements.html">Requirements</a> |
+      <a href="privacy.html">Privacy</a> |
+      <a href="security.html">Security</a> |
       <a href="https://github.com/nicglazkov/gcloud-dot/releases">Releases</a>
     </p>
     <p class="fineprint">MIT licensed. Not affiliated with Google. “gcloud” and

@@ -61,7 +61,7 @@ pub fn read_environment() -> (Option<config::ActiveConfig>, Option<credentials::
 /// Ask a running tray to exit.
 ///
 /// Writes the request file the tray checks on each tick. Returns whether the
-/// request could be written at all — not whether anything was listening.
+/// request could be written at all, not whether anything was listening.
 pub fn request_quit() -> std::io::Result<()> {
     request_quit_at(&paths::quit_request_path())
 }

@@ -1,14 +1,18 @@
 //! Builds the tray menu from a [`Status`].
 //!
-//! Rebuilt from scratch each time it is opened rather than mutated in place.
-//! The menu is only ever read at the moment of opening, so rebuilding costs
-//! nothing a user can perceive and removes a whole category of bug where one
-//! branch forgets to update a label.
+//! This is what a click on the icon opens, so it stays short. It answers the
+//! question you clicked to ask, offers the two things you might do about it,
+//! and sends you to the window for anything longer.
+//!
+//! Rebuilt from scratch each time rather than mutated in place. The menu is
+//! only read at the moment it opens, so rebuilding costs nothing you can
+//! perceive, and it removes a whole class of bug where one branch forgets to
+//! update a label.
 
 use gcloud_dot_core::{
     credentials::AdcKind,
     settings::Theme,
-    status::{ago, AuthState, Status},
+    status::{AuthState, Status},
     Settings,
 };
 use tray_icon::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -27,7 +31,7 @@ pub mod id {
     pub const TRACK_ADC: &str = "set.adc";
     /// Prefix for configuration switching: `config:<name>`.
     pub const CONFIG_PREFIX: &str = "config:";
-    /// Prefix for appearance: `theme:system` | `theme:light` | `theme:dark`.
+    /// Prefix for appearance: `theme:system`, `theme:light`, `theme:dark`.
     pub const THEME_PREFIX: &str = "theme:";
 }
 
@@ -75,9 +79,10 @@ pub fn build(
         .and_then(|c| c.account.clone())
         .unwrap_or_else(|| "no account".into());
 
+    // Line one answers the question you clicked to ask.
     match &status.auth {
         AuthState::Valid => info!(format!("{} Signed in as {account}", level.emoji())),
-        AuthState::Expired => info!(format!("{} Signed out — {account}", level.emoji())),
+        AuthState::Expired => info!(format!("{} Signed out, {account}", level.emoji())),
         AuthState::Unknown(why) => info!(format!("{} {why}", level.emoji())),
     }
 
@@ -88,84 +93,74 @@ pub fn build(
                 gcloud_dot_core::status::long_duration(left),
                 status.estimate.source.label()
             )),
-            Some(_) => info!("Past the estimate — still valid"),
+            Some(_) => info!("Past the estimate, still valid"),
             None => info!("No login history yet"),
         }
     }
-    if let Some(note) = &status.probe_note {
-        info!(format!("Last check inconclusive: {note}"));
-    }
-
-    owned.push(Box::new(PredefinedMenuItem::separator()));
 
     if let Some(cfg) = &status.config {
         if let Some(project) = &cfg.project {
             info!(format!("Project: {project}"));
         }
     }
-    if let Some(start) = status.session_start {
-        info!(format!(
-            "Last login: {} ({})",
-            start.format("%a %H:%M"),
-            ago(start, now)
-        ));
-    }
-    if let Some(expiry) = status.predicted_expiry() {
-        if status.auth == AuthState::Valid {
-            info!(format!("Est. re-auth: {}", expiry.format("%a %H:%M")));
-        }
-    }
 
-    // ADC gets its own line because it is a different credential that fails
-    // separately, which is the whole reason it is tracked.
+    // Application default credentials appear only when they are a problem.
+    // Repeating "valid" every time you open the menu buys nothing, and this is
+    // the credential behind code that fails while gcloud itself works.
     if settings.track_adc {
         if let (Some(file), Some(state)) = (&status.adc_file, &status.adc) {
-            let kind = match &file.kind {
-                AdcKind::UserCredentials => "user".to_string(),
-                AdcKind::ServiceAccount { client_email } => client_email
-                    .split('@')
-                    .next()
-                    .unwrap_or("service account")
-                    .to_string(),
-                AdcKind::Other { kind } => kind.clone(),
-            };
             let word = match state {
-                AuthState::Valid => "valid",
-                AuthState::Expired => "expired",
-                AuthState::Unknown(_) => "unknown",
+                AuthState::Valid => None,
+                AuthState::Expired => Some("expired"),
+                AuthState::Unknown(_) => Some("unknown"),
             };
-            info!(format!("ADC: {word} ({kind})"));
+            if let Some(word) = word {
+                let kind = match &file.kind {
+                    AdcKind::UserCredentials => "user".to_string(),
+                    AdcKind::ServiceAccount { client_email } => client_email
+                        .split('@')
+                        .next()
+                        .unwrap_or("service account")
+                        .to_string(),
+                    AdcKind::Other { kind } => kind.clone(),
+                };
+                info!(format!("Application default credentials: {word} ({kind})"));
+            }
         }
     }
 
     if let Some(file) = &status.adc_file {
         if gcloud_dot_core::credentials::key_file_is_stale(file, now, settings.sa_key_warn_days) {
             let days = gcloud_dot_core::credentials::age_days(file, now).unwrap_or_default();
-            info!(format!("⚠ Service account key file is {days} days old"));
+            info!(format!("Service account key file is {days} days old"));
         }
     }
 
+    if let Some(note) = &status.probe_note {
+        info!(format!("Last check was inconclusive: {note}"));
+    }
     if let Some(checked) = status.checked_at {
-        info!(format!("Last checked: {}", checked.format("%H:%M:%S")));
+        info!(format!("Last checked at {}", checked.format("%H:%M:%S")));
     }
 
+    // Everything past here is something you can do.
     owned.push(Box::new(PredefinedMenuItem::separator()));
     owned.push(Box::new(MenuItem::with_id(
+        id::DETAILS,
+        "Open window",
+        true,
+        None,
+    )));
+    owned.push(Box::new(MenuItem::with_id(
         id::LOGIN,
-        "Sign In Again…",
+        "Sign in again",
         status.gcloud_found,
         None,
     )));
     owned.push(Box::new(MenuItem::with_id(
         id::CHECK,
-        "Check Now",
+        "Check now",
         status.gcloud_found,
-        None,
-    )));
-    owned.push(Box::new(MenuItem::with_id(
-        id::DETAILS,
-        "Details…",
-        true,
         None,
     )));
 
@@ -188,16 +183,15 @@ pub fn build(
         if let Ok(sub) = Submenu::with_items("Configuration", true, &refs) {
             owned.push(Box::new(sub));
         }
-        // `items` is deliberately dropped here. muda items are `Rc`-backed and
-        // the submenu keeps a clone, so nothing is lost — and pushing them into
+        // `items` is deliberately dropped here. muda items are `Rc` backed and
+        // the submenu keeps a clone, so nothing is lost. Pushing them into
         // `owned` as well would append every configuration a second time at the
-        // top level of the menu, since everything in `owned` is appended below.
+        // top level, because everything in `owned` is appended below.
     }
 
-    // Settings submenu.
     let launch = CheckMenuItem::with_id(
         id::LAUNCH_AT_LOGIN,
-        "Launch at Login",
+        "Launch at login",
         true,
         settings.launch_at_login,
         None,
@@ -211,13 +205,14 @@ pub fn build(
     );
     let track_adc = CheckMenuItem::with_id(
         id::TRACK_ADC,
-        "Track Application Default Credentials",
+        "Track application default credentials",
         true,
         settings.track_adc,
         None,
     );
-    // Appearance, on every platform. The details window is often the only one
-    // open on a machine whose global theme was set for something else.
+
+    // Appearance, on every platform. The window is often the only one open on a
+    // machine whose global theme was set for something else.
     let theme_items: Vec<CheckMenuItem> = Theme::ALL
         .iter()
         .map(|t| {
@@ -243,7 +238,7 @@ pub fn build(
     // toggle would mean nothing anywhere else.
     let countdown = CheckMenuItem::with_id(
         id::COUNTDOWN_TEXT,
-        "Show Countdown in Menu Bar",
+        "Show countdown in menu bar",
         true,
         settings.show_countdown_text,
         None,
@@ -296,6 +291,14 @@ mod tests {
         // A configuration named like another id must not be mistaken for one.
         let odd = format!("{}{}", id::CONFIG_PREFIX, id::QUIT);
         assert_eq!(odd.strip_prefix(id::CONFIG_PREFIX), Some(id::QUIT));
+    }
+
+    #[test]
+    fn theme_ids_round_trip() {
+        for t in Theme::ALL {
+            assert_eq!(theme_from_slug(theme_slug(t)), Some(t));
+        }
+        assert_eq!(theme_from_slug("chartreuse"), None);
     }
 
     #[test]

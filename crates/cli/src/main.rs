@@ -1,4 +1,4 @@
-//! `gcloud-dot` — the command line half of GCloud Dot.
+//! `gcloud-dot`, the command line half of GCloud Dot.
 //!
 //! Everything the tray shows is available here, which is what makes the tool
 //! useful on a server with no tray at all and inside a shell prompt.
@@ -71,7 +71,7 @@ fn main() -> ExitCode {
 /// Exit codes are part of the interface: a prompt or a CI step can branch on
 /// them without parsing anything.
 ///
-/// 0 signed in · 1 signed out · 2 unknown
+/// 0 signed in | 1 signed out | 2 unknown
 fn status(json: bool, run_probe: bool) -> ExitCode {
     let snap = snapshot::take(run_probe);
     if json {

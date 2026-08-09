@@ -23,7 +23,7 @@ ASC_ISSUER_ID := $(call unquote,$(ASC_ISSUER_ID))
 SIGN_IDENTITY ?= -
 TEAM_ID       ?=
 
-.PHONY: all build test lint icons app sign notarize dmg dmg-plain verify clean \
+.PHONY: all build test lint icons app sign notarize dmg dmg-background verify clean \
         linux-deb linux-appimage windows-zip dist-macos help
 
 help:
@@ -102,7 +102,7 @@ sign: app
 # assembled before the ticket exists and stapling a disk image does not staple
 # what is sealed within it. Gatekeeper still passes such an app by asking Apple
 # online, so the gap is invisible on a connected machine and blocks the user
-# whose first launch is offline — on a plane, or behind a captive portal, which
+# whose first launch is offline, on a plane, or behind a captive portal, which
 # is exactly when someone reaches for a tool about expired credentials.
 notarize: sign
 	@test -n "$(ASC_KEY_PATH)" || { echo "set ASC_KEY_PATH, ASC_KEY_ID and ASC_ISSUER_ID in signing.env"; exit 1; }
@@ -129,48 +129,22 @@ notarize: sign
 	  --key "$(ASC_KEY_PATH)" --key-id "$(ASC_KEY_ID)" --issuer "$(ASC_ISSUER_ID)" --wait
 	xcrun stapler staple "$(DMG)"
 
-# create-dmg produces the laid-out window — icon positions, the Applications
-# drop target — but it gets there by asking hdiutil to mount a scratch image,
-# which needs a mount point under /Volumes. Some hardened environments refuse
-# that, and the failure is a bare "Operation not permitted" that says nothing
-# about why. Where mounting is unavailable, fall back to building the
-# filesystem directly, which needs no mount at all and yields the same
-# drag-to-install contents without the styling.
-dmg:
+# The installer window: a painted background, the app on the left, an alias to
+# Applications on the right, and an arrow between them.
+#
+# dmgbuild rather than create-dmg. create-dmg drives Finder over AppleScript to
+# place the icons, which needs a GUI session and an automation grant; dmgbuild
+# writes the .DS_Store directly, so the layout is produced by code instead of by
+# remote-controlling a window that may not exist.
+dmg: dmg-background
 	@test -d "$(APP)" || { echo "no app at $(APP); run make app first"; exit 1; }
-	@rm -f "$(DMG)"
-	@rm -rf build/dmgroot && mkdir -p build/dmgroot
-	@cp -R "$(APP)" build/dmgroot/
-	@if mkdir "/Volumes/.gclouddot-probe" 2>/dev/null; then \
-	  rmdir "/Volumes/.gclouddot-probe"; \
-	  echo "building a laid-out disk image with create-dmg"; \
-	  create-dmg \
-	    --volname "GCloud Dot" \
-	    --window-pos 200 120 --window-size 560 380 \
-	    --icon-size 110 \
-	    --icon "GCloud Dot.app" 150 175 \
-	    --app-drop-link 410 175 \
-	    --hide-extension "GCloud Dot.app" \
-	    --no-internet-enable \
-	    "$(DMG)" build/dmgroot; \
-	else \
-	  echo "cannot mount under /Volumes; building the image directly instead"; \
-	  $(MAKE) dmg-plain; \
-	fi
-	@rm -rf build/dmgroot
-	@echo "wrote $(DMG)"
+	python3 packaging/macos/build-dmg.py "$(APP)" "$(DMG)" build/dmg-bg
 
-# Builds the image without mounting anything. Used automatically by `dmg` when
-# mounting is unavailable, and directly useful for a reproducible build.
-dmg-plain:
-	@test -d build/dmgroot || { rm -rf build/dmgroot && mkdir -p build/dmgroot && cp -R "$(APP)" build/dmgroot/; }
-	@ln -sfn /Applications build/dmgroot/Applications
-	@rm -f build/raw.dmg "$(DMG)"
-	hdiutil makehybrid -quiet -hfs -hfs-volume-name "GCloud Dot" -o build/raw.dmg build/dmgroot
-	hdiutil convert build/raw.dmg -quiet -format UDZO -imagekey zlib-level=9 -o "$(DMG)"
-	@rm -f build/raw.dmg
-
-dist-macos: notarize verify
+# The background is drawn by the same code that draws the tray icons, at 1x and
+# 2x, so it cannot drift from the product it is advertising.
+dmg-background:
+	@mkdir -p build
+	cargo run -q -p gcloud-dot-app --example render_dmg_background -- build/dmg-bg
 
 # Confirms Gatekeeper would accept these artifacts with the network unplugged.
 verify:

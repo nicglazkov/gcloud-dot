@@ -1,7 +1,7 @@
 //! Desktop notifications.
 //!
-//! Best effort by design. A notification that cannot be shown — no D-Bus on a
-//! bare window manager, notifications denied on macOS — must never take the
+//! Best effort by design. A notification that cannot be shown, no D-Bus on a
+//! bare window manager, notifications denied on macOS, must never take the
 //! tray down with it, because the icon is still doing its job.
 
 use gcloud_dot_core::Urgency;

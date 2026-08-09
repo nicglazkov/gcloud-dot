@@ -1,8 +1,8 @@
 //! Checking whether a newer release exists.
 //!
 //! Checks and reports. It never replaces a binary: on every platform the app
-//! is installed by something that owns its files — Homebrew, winget, apt, an
-//! installer — and a self-updater writing over those leaves the package
+//! is installed by something that owns its files, Homebrew, winget, apt, an
+//! installer, and a self-updater writing over those leaves the package
 //! manager describing a version that is no longer on disk.
 //!
 //! The request is made with `curl`, which ships with macOS, Windows 10 1803 and
@@ -53,7 +53,7 @@ pub fn check_in_background<F: FnOnce(String) + Send + 'static>(delay: Duration, 
 /// Numeric comparison of dotted versions.
 ///
 /// Anything non-numeric compares as zero, which makes a pre-release tag sort
-/// below the release it precedes — the safe direction, since the alternative
+/// below the release it precedes, the safe direction, since the alternative
 /// is nagging every user of a stable build to "upgrade" to a beta.
 fn is_newer(candidate: &str, current: &str) -> bool {
     let parse = |v: &str| -> Vec<u32> {

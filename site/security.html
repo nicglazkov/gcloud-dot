@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Security — GCloud Dot</title>
+<title>Security, GCloud Dot</title>
 <meta name="description" content="GCloud Dot's trust model: what it can touch, how releases are signed, and how to verify a download.">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="stylesheet" href="style.css">
@@ -40,7 +40,7 @@
     <h2>It never handles your credentials</h2>
     <p>This is the design decision the rest of the trust model rests on.</p>
     <p>GCloud Dot does not read, copy, cache, or transmit tokens. It asks gcloud
-    a question — <code>auth print-access-token</code> — and looks only at whether
+    a question, <code>auth print-access-token</code>, and looks only at whether
     the command succeeded and, if not, at which error it printed. The token
     itself is discarded without ever being examined.</p>
     <p>It follows that a compromise of this app grants no credential it did not
@@ -50,7 +50,7 @@
   <section class="panel">
     <h2>What it can reach</h2>
     <ul>
-      <li><b>Reads</b> gcloud's configuration directory, gcloud's command logs, and the application default credentials file — the last for its <em>type</em> and modification time, never its contents.</li>
+      <li><b>Reads</b> gcloud's configuration directory, gcloud's command logs, and the application default credentials file, the last for its <em>type</em> and modification time, never its contents.</li>
       <li><b>Writes</b> one JSON file in your own data directory, plus a login item you control from the menu.</li>
       <li><b>Runs</b> the gcloud binary, and a terminal when you click Sign in.</li>
       <li><b>Requests</b> nothing over the network in its own right except the optional daily update check.</li>
@@ -64,8 +64,8 @@
     <p>The panel is rendered in the system webview from a string of HTML built
     inside the app. It loads no remote content, has no network access it could
     use, and executes no script that did not ship in the binary.</p>
-    <p>Every value that reaches it from outside — your account address, project
-    id, and configuration name — is HTML-escaped before it is inserted, and
+    <p>Every value that reaches it from outside, your account address, project
+    id, and configuration name, is HTML-escaped before it is inserted, and
     there is a test that fails if that stops being true. A configuration name is
     arbitrary text a user typed, so it is treated as hostile.</p>
   </section>
@@ -76,10 +76,10 @@
     <p>Signed with a Developer ID certificate, hardened runtime enabled, and
     notarized by Apple. The app is notarized and stapled <em>before</em> the disk
     image is built, and the disk image is then notarized and stapled itself.</p>
-    <p>That second step is easy to skip and worth insisting on: notarizing only
+    <p>That second step is the one most often skipped, and the one worth insisting on. Notarizing only
     the DMG leaves the app inside it without a ticket. Gatekeeper covers for
     that by asking Apple online, so the gap is invisible on a connected machine
-    and blocks the person whose first launch is offline — on a plane, or behind
+    and blocks the person whose first launch is offline, on a plane, or behind
     a captive portal, which is exactly when someone reaches for a tool about
     expired credentials.</p>
     <p>To check for yourself:</p>
@@ -114,14 +114,14 @@ xcrun stapler validate "/Applications/GCloud Dot.app"</code></pre>
     <a href="https://github.com/nicglazkov/gcloud-dot/security/advisories/new">private
     advisory</a> on GitHub. Please do not open a public issue for a
     vulnerability until it is fixed.</p>
-    <p class="updated">This page describes GCloud Dot 1.0.1.</p>
+    <p class="updated">This page describes GCloud Dot 1.0.2.</p>
   </section>
 
   <footer>
     <p>
-      <a href="index.html">Home</a> ·
-      <a href="requirements.html">Requirements</a> ·
-      <a href="privacy.html">Privacy</a> ·
+      <a href="index.html">Home</a> |
+      <a href="requirements.html">Requirements</a> |
+      <a href="privacy.html">Privacy</a> |
       <a href="https://github.com/nicglazkov/gcloud-dot">Source</a>
     </p>
   </footer>
