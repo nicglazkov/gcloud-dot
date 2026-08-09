@@ -57,3 +57,54 @@ pub fn read_environment() -> (Option<config::ActiveConfig>, Option<credentials::
     let adc = paths::adc_path().and_then(|p| credentials::read_adc(&p));
     (config, adc)
 }
+
+/// Ask a running tray to exit.
+///
+/// Writes the request file the tray checks on each tick. Returns whether the
+/// request could be written at all — not whether anything was listening.
+pub fn request_quit() -> std::io::Result<()> {
+    request_quit_at(&paths::quit_request_path())
+}
+
+fn request_quit_at(path: &std::path::Path) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(path, "quit")
+}
+
+/// Consume a pending quit request. True means the tray should exit now.
+///
+/// The file is removed before acting, so a tray that is killed between the two
+/// does not find a stale request waiting at its next launch and exit again.
+pub fn take_quit_request() -> bool {
+    take_quit_request_at(&paths::quit_request_path())
+}
+
+fn take_quit_request_at(path: &std::path::Path) -> bool {
+    if path.exists() {
+        let _ = std::fs::remove_file(path);
+        return true;
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_quit_request_is_consumed_exactly_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested").join("quit.request");
+
+        // Nothing pending to begin with.
+        assert!(!take_quit_request_at(&path));
+
+        request_quit_at(&path).unwrap();
+        assert!(take_quit_request_at(&path), "the request should be seen");
+        // Consumed, so a tray restarting later does not exit immediately on a
+        // request that was already answered.
+        assert!(!take_quit_request_at(&path), "it must not fire twice");
+    }
+}

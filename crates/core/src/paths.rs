@@ -67,6 +67,19 @@ pub fn state_path() -> PathBuf {
     data_dir().join("state.json")
 }
 
+/// A file the CLI drops to ask a running tray to exit.
+///
+/// A file rather than a signal or a socket because it is the only mechanism
+/// that behaves the same on all three platforms with no dependency, and because
+/// the tray is already waking on a timer — it costs one `exists` call per tick.
+///
+/// This matters more than it sounds: if the menu bar is full, macOS stops
+/// drawing the icon, and the menu holding "Quit" becomes unreachable. Without
+/// this the only way out would be Activity Monitor.
+pub fn quit_request_path() -> PathBuf {
+    data_dir().join("quit.request")
+}
+
 /// State written by the PowerShell tray this app replaces. Read once, on first
 /// run, so an existing user keeps the session samples they already paid for in
 /// wall-clock time.

@@ -51,6 +51,8 @@ enum Command {
     },
     /// Print where state and settings are kept.
     Paths,
+    /// Ask the running menu bar or tray app to exit.
+    Quit,
 }
 
 fn main() -> ExitCode {
@@ -62,6 +64,7 @@ fn main() -> ExitCode {
         Command::History => history(cli.json),
         Command::Config { name } => config(name, cli.json),
         Command::Paths => paths_cmd(cli.json),
+        Command::Quit => quit(),
     }
 }
 
@@ -148,6 +151,35 @@ fn config(name: Option<String>, json: bool) -> ExitCode {
         }
         _ => ExitCode::from(1),
     }
+}
+
+/// Ask a running tray to exit, and say honestly whether one was listening.
+///
+/// This exists because the tray's own Quit item lives in a menu behind an icon,
+/// and a full menu bar means macOS never draws that icon. Without a route from
+/// the terminal the only way out would be Activity Monitor.
+fn quit() -> ExitCode {
+    if let Err(e) = gcloud_dot_core::request_quit() {
+        eprintln!("could not write the quit request: {e}");
+        return ExitCode::from(2);
+    }
+
+    // The tray removes the file as it exits, so its disappearance is the
+    // acknowledgement. Poll a little longer than one tick.
+    let path = gcloud_dot_core::paths::quit_request_path();
+    for _ in 0..40 {
+        if !path.exists() {
+            println!("GCloud Dot is shutting down.");
+            return ExitCode::SUCCESS;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+
+    // Nothing consumed it. Clear the request rather than leave a landmine that
+    // would make the next launch exit immediately.
+    let _ = std::fs::remove_file(&path);
+    eprintln!("No running GCloud Dot answered. It may already be stopped.");
+    ExitCode::from(1)
 }
 
 fn paths_cmd(json: bool) -> ExitCode {

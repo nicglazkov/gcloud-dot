@@ -142,6 +142,11 @@ $ gcloud-dot
 | `gcloud-dot config [name]` | Show configurations, or switch to one |
 | `gcloud-dot login` | Run `gcloud auth login` |
 | `gcloud-dot paths` | Where everything lives on this machine |
+| `gcloud-dot quit` | Stop the running menu bar or tray app |
+
+`quit` matters more than it looks: when the menu bar is full, macOS stops
+drawing the icon, and the menu holding Quit goes with it. The panel has a quit
+link too, and while it is open the app is a normal application, so ⌘Q works.
 
 Exit codes are part of the interface — `0` signed in, `1` signed out, `2`
 unknown — so a shell prompt or a CI step can branch without parsing anything.

@@ -365,7 +365,8 @@ pub fn body(v: &PanelView) -> String {
     <button class="primary" onclick="send('login')">Sign in</button>
     <button onclick="send('check')">Check now</button>
   </div>
-  <footer>GCloud Dot {version} · <a href="#" onclick="send('website');return false">website</a></footer>
+  <footer>GCloud Dot {version} · <a href="#" onclick="send('website');return false">website</a>
+    · <a href="#" onclick="send('quit');return false">quit</a></footer>
 </div>"##,
         headline = esc(&v.headline),
         sub = esc(&v.sub),

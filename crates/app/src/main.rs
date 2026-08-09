@@ -204,6 +204,14 @@ fn main() {
             }
 
             Event::UserEvent(UserEvent::Tick) => {
+                // Checked before anything else: when the menu bar is full the
+                // icon is not drawn and its Quit item cannot be reached, so
+                // `gcloud-dot quit` is the only way out.
+                if gcloud_dot_core::take_quit_request() {
+                    app.save();
+                    *control_flow = ControlFlow::Exit;
+                    return;
+                }
                 let plan = app.engine.plan(Local::now());
                 app.dispatch_work(&proxy, plan);
                 // Redraw regardless: the countdown advances on its own.
@@ -642,6 +650,11 @@ impl App {
             }
             Some("website") => {
                 let _ = actions::open_url("https://nicglazkov.github.io/gcloud-dot/");
+            }
+            // Routed through the menu handler so quitting behaves identically
+            // however it was asked for.
+            Some("quit") => {
+                let _ = proxy.send_event(UserEvent::Menu(menu::id::QUIT.to_string()));
             }
             _ => {}
         }
