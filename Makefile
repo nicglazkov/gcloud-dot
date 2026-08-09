@@ -147,6 +147,10 @@ dmg-background:
 	cargo run -q -p gcloud-dot-app --example render_dmg_background -- build/dmg-bg
 
 # Confirms Gatekeeper would accept these artifacts with the network unplugged.
+# The whole release flow for macOS, in the only order that staples everything.
+dist-macos: notarize verify
+
+# Confirms Gatekeeper would accept both artifacts with the network unplugged.
 verify:
 	@echo "--- signature ---"
 	@codesign -dv --verbose=2 "$(APP)" 2>&1 | grep -E "Authority|TeamIdentifier|flags" || true
