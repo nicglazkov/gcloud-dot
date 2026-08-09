@@ -171,9 +171,10 @@ pub fn build(
         if let Ok(sub) = Submenu::with_items("Configuration", true, &refs) {
             owned.push(Box::new(sub));
         }
-        for item in items {
-            owned.push(Box::new(item));
-        }
+        // `items` is deliberately dropped here. muda items are `Rc`-backed and
+        // the submenu keeps a clone, so nothing is lost — and pushing them into
+        // `owned` as well would append every configuration a second time at the
+        // top level of the menu, since everything in `owned` is appended below.
     }
 
     // Settings submenu.

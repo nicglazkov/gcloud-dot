@@ -214,6 +214,11 @@ fn main() {
                 app.work_in_flight = false;
                 app.apply_work(*result);
                 app.refresh_ui();
+                // The menu shows the last-checked time and the ADC state, and
+                // neither appears in the tooltip that `refresh_ui` compares
+                // against — so a probe that changed only those would otherwise
+                // leave the menu quoting the previous check.
+                app.rebuild_menu();
                 app.refresh_panel();
             }
 
@@ -292,9 +297,14 @@ impl App {
         std::thread::spawn(move || {
             let mut result = WorkResult::default();
             if plan.rescan_logs {
-                if let Some(dir) = paths::gcloud_log_dir() {
-                    result.logins = Some(logs::scan_logins(&dir, None));
-                }
+                // Always answer, even with nothing, so the engine can record
+                // that a scan happened. Returning `None` when gcloud has no log
+                // directory would leave the scan permanently overdue and spawn
+                // one of these threads every five seconds forever.
+                result.logins = Some(match paths::gcloud_log_dir() {
+                    Some(dir) => logs::scan_logins(&dir, None),
+                    None => Vec::new(),
+                });
             }
             if let Some(path) = &gcloud_path {
                 let timeout = Duration::from_secs(25);
@@ -396,11 +406,16 @@ impl App {
             let _ = tray.set_tooltip(Some(&key.tooltip));
         }
 
-        let level_changed = self.last_render.as_ref().map(|k| k.level) != Some(level);
         self.last_render = Some(key);
-        if level_changed {
-            self.rebuild_menu();
-        }
+
+        // Rebuilt whenever anything drawn has changed, not only on a colour
+        // change. muda has no will-open hook, so a menu built once would still
+        // be claiming "about 14h left" three hours later — and the menu is the
+        // only place the account, project, and estimate are readable at all.
+        //
+        // The tooltip carries minute precision, so in practice this fires about
+        // once a minute while a countdown is running, and not at all otherwise.
+        self.rebuild_menu();
     }
 
     fn rebuild_menu(&mut self) {
