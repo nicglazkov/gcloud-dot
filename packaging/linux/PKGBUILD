@@ -1,6 +1,6 @@
 # Maintainer: Nicholas Glazkov <nic@glazkov.com>
 pkgname=gcloud-dot
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="Shows how long your gcloud auth session has left, from the system tray"
 arch=('x86_64' 'aarch64')

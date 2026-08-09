@@ -4,9 +4,14 @@
 //! project's website rather than inventing a second one, and so the evidence
 //! behind the estimate — every sample, every login gap — can be laid out
 //! properly instead of squeezed into menu rows.
+//!
+//! The document is built in two pieces: [`document`] for the initial load and
+//! [`body`] for a live refresh, so an update can swap the content without
+//! re-parsing the stylesheet or losing the scroll position's context.
 
 use gcloud_dot_core::{
     credentials::AdcKind,
+    settings::Theme,
     status::{ago, long_duration, AuthState, Level, Status},
     State,
 };
@@ -20,10 +25,23 @@ pub struct PanelView {
     pub rows: Vec<(String, String)>,
     pub estimate_hours: f64,
     pub estimate_source: String,
-    pub estimate_measured: bool,
+    pub evidence: Evidence,
     pub samples: Vec<f64>,
     pub logins: Vec<(String, String, String)>,
     pub version: String,
+}
+
+/// How much the session-length figure is actually worth, which decides what the
+/// panel says underneath it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Evidence {
+    /// Three or more observed expiries: the median of real measurements.
+    Measured,
+    /// One or two. Real measurements, but not yet stable.
+    Settling,
+    /// No expiry has been observed; the number comes from login gaps or a
+    /// constant.
+    Inferred,
 }
 
 pub fn view(status: &Status, state: &State) -> PanelView {
@@ -110,6 +128,13 @@ pub fn view(status: &Status, state: &State) -> PanelView {
         })
         .collect();
 
+    use gcloud_dot_core::estimate::EstimateSource;
+    let evidence = match status.estimate.source {
+        EstimateSource::Observed { .. } => Evidence::Measured,
+        EstimateSource::FewObservations { .. } => Evidence::Settling,
+        _ => Evidence::Inferred,
+    };
+
     PanelView {
         level,
         headline,
@@ -117,7 +142,7 @@ pub fn view(status: &Status, state: &State) -> PanelView {
         rows,
         estimate_hours: status.estimate.hours,
         estimate_source: status.estimate.source.label(),
-        estimate_measured: status.estimate.source.is_measured(),
+        evidence,
         samples: state.samples.clone(),
         logins,
         version: gcloud_dot_core::VERSION.to_string(),
@@ -136,7 +161,119 @@ fn rgb_css(level: Level) -> String {
     format!("rgb({r},{g},{b})")
 }
 
-pub fn html(v: &PanelView) -> String {
+/// Three-state theming, matching the website exactly.
+///
+/// Light tokens live on bare `:root`. Dark is applied twice: once under
+/// `prefers-color-scheme` guarded so an explicit light choice wins, and once
+/// under `[data-theme="dark"]` so an explicit dark choice wins over a light
+/// system. Any token defined only inside a media query would leave the panel
+/// borrowing whatever the host webview happens to paint.
+const PANEL_CSS: &str = r#"
+:root{
+  --wash-a:#d4f2e1; --wash-b:#fdeed0; --page:#f5f8f6;
+  --glass:rgba(255,255,255,.66); --glass-line:rgba(255,255,255,.9);
+  --text:#11150f; --muted:#556053; --faint:#818b7f;
+  --rule:rgba(0,0,0,.08); --soft:rgba(0,0,0,.05); --soft-line:rgba(0,0,0,.1);
+  --shadow:0 10px 30px rgba(20,60,40,.12);
+  --brand:#0e8a45; --brand-ink:#fff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --wash-a:#0d3b28; --wash-b:#3b2d0e; --page:#080a09;
+    --glass:rgba(255,255,255,.055); --glass-line:rgba(255,255,255,.1);
+    --text:#f2f6f2; --muted:#a4b0a6; --faint:#7c887e;
+    --rule:rgba(255,255,255,.09); --soft:rgba(255,255,255,.07); --soft-line:rgba(255,255,255,.15);
+    --shadow:0 18px 44px rgba(0,0,0,.55);
+    --brand:#22a75a; --brand-ink:#fff;
+  }
+}
+:root[data-theme="dark"]{
+  --wash-a:#0d3b28; --wash-b:#3b2d0e; --page:#080a09;
+  --glass:rgba(255,255,255,.055); --glass-line:rgba(255,255,255,.1);
+  --text:#f2f6f2; --muted:#a4b0a6; --faint:#7c887e;
+  --rule:rgba(255,255,255,.09); --soft:rgba(255,255,255,.07); --soft-line:rgba(255,255,255,.15);
+  --shadow:0 18px 44px rgba(0,0,0,.55);
+  --brand:#22a75a; --brand-ink:#fff;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  color:var(--text); background-color:var(--page);
+  background-image:
+    radial-gradient(70% 52% at 12% 0, var(--wash-a) 0, transparent 62%),
+    radial-gradient(62% 48% at 95% 4%, var(--wash-b) 0, transparent 58%);
+  background-attachment:fixed;
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased; user-select:none;
+  /* One column with a single scrolling region, so the actions can be pinned
+     rather than pushed below the fold by evidence that grows without bound. */
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.scroll{flex:1; overflow-y:auto; overflow-x:hidden; padding:16px 16px 4px}
+/* No scrollbar furniture. The window is resizable and the actions are pinned,
+   so a permanent grey track next to a 400 point panel is all cost. Scrolling
+   by wheel, trackpad, and keyboard is untouched. */
+.scroll{scrollbar-width:none; -ms-overflow-style:none}
+.scroll::-webkit-scrollbar{width:0; height:0; display:none}
+
+.bottom{
+  padding:11px 16px 13px; border-top:1px solid var(--rule);
+  background:var(--glass);
+  backdrop-filter:blur(20px) saturate(170%); -webkit-backdrop-filter:blur(20px) saturate(170%);
+}
+.card{
+  background:var(--glass); border:1px solid var(--glass-line); border-radius:16px;
+  backdrop-filter:blur(20px) saturate(170%); -webkit-backdrop-filter:blur(20px) saturate(170%);
+  box-shadow:var(--shadow); padding:16px; margin-bottom:12px;
+}
+.head{display:flex; align-items:center; gap:13px}
+.dot{width:15px; height:15px; border-radius:50%; background:var(--level); flex:0 0 auto;
+     box-shadow:0 0 0 4px color-mix(in srgb, var(--level) 20%, transparent)}
+.headline{font-size:27px; font-weight:640; letter-spacing:-.022em; line-height:1.1}
+.sub{color:var(--muted); font-size:12.5px; margin-top:3px}
+/* minmax(0,1fr), not 1fr: a track's automatic minimum is its content size, so
+   a long account address would widen the row rather than wrap inside it. */
+.grid{display:grid; grid-template-columns:auto minmax(0,1fr); gap:7px 16px;
+      margin-top:15px; padding-top:14px; border-top:1px solid var(--rule); font-size:13px}
+.k{color:var(--faint); white-space:nowrap}
+.v{text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums}
+h2{font-size:11px; text-transform:uppercase; letter-spacing:.075em; color:var(--faint);
+   margin:0 0 10px; font-weight:640}
+.est{display:flex; align-items:baseline; gap:9px; flex-wrap:wrap}
+.est b{font-size:23px; font-weight:640; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.est span{color:var(--muted); font-size:12.5px}
+.note{color:var(--faint); font-size:11.5px; margin-top:8px; line-height:1.45}
+.spark{display:flex; align-items:flex-end; gap:3px; height:52px; margin-top:13px}
+.spark i{flex:1; background:var(--brand); opacity:.5; border-radius:2px 2px 0 0}
+.spark i:last-child{opacity:1}
+.sparkscale{display:flex; justify-content:space-between; color:var(--faint);
+            font-size:10.5px; margin-top:5px; font-variant-numeric:tabular-nums}
+ul{list-style:none; margin:0; padding:0; font-size:12.5px}
+li{display:flex; gap:10px; padding:5px 0; border-bottom:1px solid var(--rule);
+   font-variant-numeric:tabular-nums}
+li:last-child{border-bottom:0}
+.d{width:52px; color:var(--muted)}
+.t{width:46px}
+.g{margin-left:auto; color:var(--faint)}
+.actions{display:flex; gap:9px}
+button{
+  flex:1; font:inherit; font-weight:560; font-size:13px; padding:9px 12px; cursor:pointer;
+  border-radius:10px; border:1px solid var(--soft-line); background:var(--soft); color:var(--text);
+  transition:transform .06s ease, background .12s ease;
+}
+button:hover{background:color-mix(in srgb, var(--brand) 12%, var(--soft))}
+button:active{transform:translateY(1px)}
+/* The primary action is always brand green, never the status colour. Painting
+   "Sign in" red because the session expired reads as a destructive button. */
+button.primary{background:var(--brand); border-color:transparent; color:var(--brand-ink)}
+button.primary:hover{filter:brightness(1.08)}
+footer{text-align:center; color:var(--faint); font-size:11px; margin-top:9px}
+footer a{color:var(--faint)}
+"#;
+
+/// The scrolling content and the pinned action bar.
+pub fn body(v: &PanelView) -> String {
     let rows: String = v
         .rows
         .iter()
@@ -178,132 +315,49 @@ pub fn html(v: &PanelView) -> String {
         .map(|(day, time, gap)| {
             format!(
                 "<li><span class=\"d\">{}</span><span class=\"t\">{}</span><span class=\"g\">{}</span></li>",
-                esc(day),
-                esc(time),
-                esc(gap)
+                esc(day), esc(time), esc(gap)
             )
         })
         .collect();
 
-    let measured_note = if v.estimate_measured {
-        "Measured from sessions seen expiring."
-    } else {
-        "Not yet measured. This is inferred, and will sharpen as sessions are observed ending."
+    // Must agree with the figure above it. Saying "not yet measured" under a
+    // label reading "measured, n=1, settling" is a straight contradiction, and
+    // it shipped in the first build.
+    let note = match v.evidence {
+        Evidence::Measured => "Measured from sessions seen expiring.",
+        Evidence::Settling => {
+            "Measured, but from too few sessions to be steady yet. It sharpens with each expiry observed."
+        }
+        Evidence::Inferred => {
+            "Not yet measured. Inferred from your login history, and replaced as soon as a session is seen expiring."
+        }
     };
 
     format!(
-        r##"<!-- GCloud Dot details panel -->
-<style>
-  :root {{
-    --wash-a:#d6f0e2; --wash-b:#fdeccd; --page:#f6f7f6;
-    --glass:rgba(255,255,255,.66); --glass-line:rgba(255,255,255,.9);
-    --text:#12141a; --muted:#585e70; --faint:#868c9c;
-    --rule:rgba(0,0,0,.08); --soft:rgba(0,0,0,.045); --soft-line:rgba(0,0,0,.09);
-    --shadow:0 10px 30px rgba(30,60,45,.12);
-    --accent:{accent};
-  }}
-  @media (prefers-color-scheme: dark) {{
-    :root {{
-      --wash-a:#123a2a; --wash-b:#3a2a12; --page:#0a0b0c;
-      --glass:rgba(255,255,255,.055); --glass-line:rgba(255,255,255,.1);
-      --text:#f3f5f4; --muted:#a6adb8; --faint:#79808c;
-      --rule:rgba(255,255,255,.09); --soft:rgba(255,255,255,.07); --soft-line:rgba(255,255,255,.14);
-      --shadow:0 18px 44px rgba(0,0,0,.55);
-    }}
-  }}
-  * {{ box-sizing:border-box; }}
-  html,body {{ margin:0; height:100%; }}
-  body {{
-    color:var(--text); background-color:var(--page);
-    background-image:
-      radial-gradient(70% 52% at 12% 0, var(--wash-a) 0, transparent 62%),
-      radial-gradient(62% 48% at 95% 4%, var(--wash-b) 0, transparent 58%);
-    font:14px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-    -webkit-font-smoothing:antialiased; user-select:none;
-    /* A column with one scrolling region, rather than one long scrolling page.
-       The evidence cards grow without bound — twenty samples and ten logins —
-       and at 400 points wide they run past 1100, so on a page that simply
-       scrolled, Sign in and Check now would sit permanently below the fold. */
-    display:flex; flex-direction:column; overflow:hidden;
-  }}
-  .scroll {{ flex:1; overflow-y:auto; overflow-x:hidden; padding:18px 18px 4px; }}
-  .bottom {{
-    padding:11px 18px 14px; border-top:1px solid var(--rule);
-    background:var(--glass); backdrop-filter:blur(20px) saturate(170%);
-    -webkit-backdrop-filter:blur(20px) saturate(170%);
-  }}
-  .card {{
-    background:var(--glass); border:1px solid var(--glass-line); border-radius:16px;
-    backdrop-filter:blur(20px) saturate(170%); -webkit-backdrop-filter:blur(20px) saturate(170%);
-    box-shadow:var(--shadow); padding:16px; margin-bottom:12px;
-  }}
-  .head {{ display:flex; align-items:center; gap:13px; }}
-  .dot {{ width:15px; height:15px; border-radius:50%; background:var(--accent);
-         box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); flex:0 0 auto; }}
-  .headline {{ font-size:27px; font-weight:640; letter-spacing:-.022em; line-height:1.1; }}
-  .sub {{ color:var(--muted); font-size:12.5px; margin-top:3px; }}
-  /* minmax(0,1fr), not 1fr: a grid track's automatic minimum is its content
-     size, so a long account address or project id would push the row wider
-     than the window and clip every value on the right. */
-  .grid {{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:7px 16px;
-           margin-top:15px; padding-top:14px; border-top:1px solid var(--rule);
-           font-size:13px; }}
-  .k {{ color:var(--faint); white-space:nowrap; }}
-  .v {{ text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }}
-  h2 {{ font-size:11px; text-transform:uppercase; letter-spacing:.075em; color:var(--faint);
-        margin:0 0 10px; font-weight:640; }}
-  .est {{ display:flex; align-items:baseline; gap:9px; }}
-  .est b {{ font-size:23px; font-weight:640; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }}
-  .est span {{ color:var(--muted); font-size:12.5px; }}
-  .note {{ color:var(--faint); font-size:11.5px; margin-top:8px; line-height:1.45; }}
-  .spark {{ display:flex; align-items:flex-end; gap:3px; height:52px; margin-top:13px; }}
-  .spark i {{ flex:1; background:var(--accent); opacity:.5; border-radius:2px 2px 0 0; }}
-  .spark i:last-child {{ opacity:1; }}
-  .sparkscale {{ display:flex; justify-content:space-between; color:var(--faint);
-                 font-size:10.5px; margin-top:5px; font-variant-numeric:tabular-nums; }}
-  ul {{ list-style:none; margin:0; padding:0; font-size:12.5px; }}
-  li {{ display:flex; gap:10px; padding:5px 0; border-bottom:1px solid var(--rule);
-        font-variant-numeric:tabular-nums; }}
-  li:last-child {{ border-bottom:0; }}
-  .d {{ width:52px; color:var(--muted); }}
-  .t {{ width:46px; }}
-  .g {{ margin-left:auto; color:var(--faint); }}
-  .actions {{ display:flex; gap:9px; }}
-  button {{
-    flex:1; font:inherit; font-weight:560; font-size:13px; padding:9px 12px; cursor:pointer;
-    border-radius:10px; border:1px solid var(--soft-line); background:var(--soft); color:var(--text);
-    transition:transform .06s ease, background .12s ease;
-  }}
-  button:hover {{ background:color-mix(in srgb, var(--accent) 12%, var(--soft)); }}
-  button:active {{ transform:translateY(1px); }}
-  button.primary {{ background:var(--accent); border-color:transparent; color:#fff; }}
-  footer {{ text-align:center; color:var(--faint); font-size:11px; margin-top:9px; }}
-  footer a {{ color:var(--faint); }}
-</style>
-
-<div class="scroll">
-<div class="card">
-  <div class="head">
-    <div class="dot"></div>
-    <div>
-      <div class="headline">{headline}</div>
-      <div class="sub">{sub}</div>
+        // r##: the template contains href="#", and `"#` would close an r#"..."# literal.
+        r##"<div class="scroll">
+  <div class="card">
+    <div class="head">
+      <div class="dot"></div>
+      <div>
+        <div class="headline">{headline}</div>
+        <div class="sub">{sub}</div>
+      </div>
     </div>
+    <div class="grid">{rows}</div>
   </div>
-  <div class="grid">{rows}</div>
-</div>
 
-<div class="card">
-  <h2>Session length</h2>
-  <div class="est"><b>{hours:.2}h</b><span>{source}</span></div>
-  {bars}
-  <div class="note">{measured_note}</div>
-</div>
+  <div class="card">
+    <h2>Session length</h2>
+    <div class="est"><b>{hours:.2}h</b><span>{source}</span></div>
+    {bars}
+    <div class="note">{note}</div>
+  </div>
 
-<div class="card">
-  <h2>Recent logins</h2>
-  <ul>{logins}</ul>
-</div>
+  <div class="card">
+    <h2>Recent logins</h2>
+    <ul>{logins}</ul>
+  </div>
 </div>
 
 <div class="bottom">
@@ -312,22 +366,65 @@ pub fn html(v: &PanelView) -> String {
     <button onclick="send('check')">Check now</button>
   </div>
   <footer>GCloud Dot {version} · <a href="#" onclick="send('website');return false">website</a></footer>
-</div>
-
-<script>
-  function send(action) {{ window.ipc.postMessage(JSON.stringify({{action}})); }}
-</script>
-"##,
-        accent = rgb_css(v.level),
+</div>"##,
         headline = esc(&v.headline),
         sub = esc(&v.sub),
         rows = rows,
         hours = v.estimate_hours,
         source = esc(&v.estimate_source),
         bars = bars,
-        measured_note = measured_note,
+        note = note,
         logins = logins,
         version = esc(&v.version),
+    )
+}
+
+/// The complete document, for the initial load.
+pub fn document(v: &PanelView, theme: Theme) -> String {
+    let attr = theme.attr();
+    let theme_attr = if attr.is_empty() {
+        String::new()
+    } else {
+        format!(" data-theme=\"{attr}\"")
+    };
+    format!(
+        r#"<!doctype html>
+<html lang="en"{theme_attr}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GCloud Dot</title>
+<style>{css}
+:root{{--level:{level}}}</style>
+</head>
+<body>
+{body}
+<script>
+  function send(action) {{ window.ipc.postMessage(JSON.stringify({{action}})); }}
+</script>
+</body>
+</html>"#,
+        theme_attr = theme_attr,
+        css = PANEL_CSS,
+        level = rgb_css(v.level),
+        body = body(v),
+    )
+}
+
+/// Script that swaps the content of an open panel in place.
+///
+/// `send` survives because it was defined on `window` by the initial load;
+/// replacing the body removes the old `<script>` element but not the global it
+/// already created.
+pub fn refresh_script(v: &PanelView, theme: Theme) -> String {
+    let attr = theme.attr();
+    format!(
+        "document.documentElement.setAttribute('data-theme', {theme});\
+         document.documentElement.style.setProperty('--level', {level});\
+         document.body.innerHTML = {body};",
+        theme = serde_json::to_string(attr).unwrap_or_else(|_| "''".into()),
+        level = serde_json::to_string(&rgb_css(v.level)).unwrap_or_else(|_| "''".into()),
+        body = serde_json::to_string(&body(v)).unwrap_or_else(|_| "''".into()),
     )
 }
 
@@ -371,11 +468,30 @@ mod tests {
     #[test]
     fn renders_the_account_and_evidence() {
         let (status, state) = fixture();
-        let page = html(&view(&status, &state));
+        let page = document(&view(&status, &state), Theme::System);
         assert!(page.contains("nic@glazkov.com"));
         assert!(page.contains("my-project"));
         assert!(page.contains("16.06"));
-        assert!(page.contains("Measured from sessions"));
+        assert!(page.contains("Measured from sessions seen expiring."));
+    }
+
+    #[test]
+    fn the_note_never_contradicts_the_label() {
+        // The first build showed "measured, n=1, settling" above a note reading
+        // "Not yet measured", which is a straight contradiction.
+        let (mut status, state) = fixture();
+        status.estimate = Estimate {
+            hours: 16.0,
+            source: EstimateSource::FewObservations { count: 1 },
+        };
+        let v = view(&status, &state);
+        assert_eq!(v.evidence, Evidence::Settling);
+        let page = document(&v, Theme::System);
+        assert!(page.contains("measured, n=1, settling"));
+        assert!(
+            !page.contains("Not yet measured"),
+            "a measured figure must not be captioned as unmeasured"
+        );
     }
 
     #[test]
@@ -385,24 +501,55 @@ mod tests {
             hours: 20.0,
             source: EstimateSource::Default,
         };
-        let page = html(&view(&status, &state));
-        assert!(
-            page.contains("Not yet measured"),
-            "must not imply measurement"
-        );
+        let v = view(&status, &state);
+        assert_eq!(v.evidence, Evidence::Inferred);
+        assert!(document(&v, Theme::System).contains("Not yet measured"));
+    }
+
+    #[test]
+    fn theme_choice_reaches_the_document() {
+        let (status, state) = fixture();
+        let v = view(&status, &state);
+        // Assert on the html tag, not the whole document: the stylesheet
+        // mentions [data-theme=...] in its selectors no matter what is chosen.
+        assert!(document(&v, Theme::Dark).contains(r#"<html lang="en" data-theme="dark">"#));
+        assert!(document(&v, Theme::Light).contains(r#"<html lang="en" data-theme="light">"#));
+        // System leaves the attribute off so prefers-color-scheme decides.
+        assert!(document(&v, Theme::System).contains(r#"<html lang="en">"#));
+    }
+
+    #[test]
+    fn both_themes_define_every_colour_token() {
+        // A token defined only inside a media query leaves the panel borrowing
+        // whatever the host paints when the other theme is chosen.
+        for token in ["--page", "--text", "--glass", "--brand", "--muted"] {
+            let light = PANEL_CSS.matches(&format!("{token}:")).count();
+            assert!(
+                light >= 3,
+                "{token} should be defined for light, media-dark, and explicit dark"
+            );
+        }
+    }
+
+    #[test]
+    fn the_scrollbar_is_hidden_but_scrolling_is_not() {
+        assert!(PANEL_CSS.contains("scrollbar-width:none"));
+        assert!(PANEL_CSS.contains("::-webkit-scrollbar"));
+        assert!(PANEL_CSS.contains("overflow-y:auto"));
+    }
+
+    #[test]
+    fn the_primary_button_is_never_the_status_colour() {
+        // "Sign in" painted red because the session expired reads as delete.
+        assert!(PANEL_CSS.contains("button.primary{background:var(--brand)"));
     }
 
     #[test]
     fn escapes_values_that_come_from_the_environment() {
-        // A project id cannot contain a bracket, but a configuration name can
-        // be anything a user typed, and it lands straight in the markup.
         let (mut status, state) = fixture();
         status.config.as_mut().unwrap().name = "<img src=x onerror=alert(1)>".into();
-        let page = html(&view(&status, &state));
-        assert!(
-            !page.contains("<img src=x"),
-            "unescaped value reached the page"
-        );
+        let page = document(&view(&status, &state), Theme::System);
+        assert!(!page.contains("<img src=x"));
         assert!(page.contains("&lt;img"));
     }
 
@@ -421,7 +568,6 @@ mod tests {
         let v = view(&status, &state);
         assert_eq!(v.logins.len(), 3);
         assert_eq!(v.logins[0].2, "+16.0h");
-        // The oldest entry has nothing before it to measure against.
         assert_eq!(v.logins[2].2, "");
     }
 
@@ -429,6 +575,14 @@ mod tests {
     fn one_sample_draws_no_sparkline() {
         let (status, mut state) = fixture();
         state.samples = vec![16.0];
-        assert!(!html(&view(&status, &state)).contains("class=\"spark\""));
+        assert!(!body(&view(&status, &state)).contains("class=\"spark\""));
+    }
+
+    #[test]
+    fn the_refresh_script_is_valid_javascript_literals() {
+        let (status, state) = fixture();
+        let s = refresh_script(&view(&status, &state), Theme::Dark);
+        assert!(s.contains("setAttribute('data-theme', \"dark\")"));
+        assert!(s.contains("document.body.innerHTML = \""));
     }
 }

@@ -7,6 +7,43 @@
 use chrono::{NaiveTime, Timelike};
 use serde::{Deserialize, Serialize};
 
+/// Appearance of the details window.
+///
+/// `System` is the default and the right answer for almost everyone; the two
+/// overrides exist because a menu bar app is often the one window left open on
+/// a machine whose global theme is set for something else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl Theme {
+    /// The value for the document's `data-theme` attribute. Empty means "let
+    /// `prefers-color-scheme` decide", which is what the stylesheet falls back
+    /// to when the attribute is absent.
+    pub fn attr(self) -> &'static str {
+        match self {
+            Theme::System => "",
+            Theme::Light => "light",
+            Theme::Dark => "dark",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Theme::System => "Match System",
+            Theme::Light => "Light",
+            Theme::Dark => "Dark",
+        }
+    }
+
+    pub const ALL: [Theme; 3] = [Theme::System, Theme::Light, Theme::Dark];
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -27,6 +64,8 @@ pub struct Settings {
     pub sa_key_warn_days: i64,
     pub launch_at_login: bool,
     pub check_for_updates: bool,
+    /// Appearance of the details window, on every platform.
+    pub theme: Theme,
 }
 
 impl Default for Settings {
@@ -43,6 +82,7 @@ impl Default for Settings {
             sa_key_warn_days: 90,
             launch_at_login: true,
             check_for_updates: true,
+            theme: Theme::System,
         }
     }
 }

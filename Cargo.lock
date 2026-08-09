@@ -979,7 +979,7 @@ dependencies = [
 
 [[package]]
 name = "gcloud-dot-app"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "ab_glyph",
  "chrono",
@@ -997,7 +997,7 @@ dependencies = [
 
 [[package]]
 name = "gcloud-dot-cli"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "clap",
@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "gcloud-dot-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "dirs 5.0.1",

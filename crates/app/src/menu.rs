@@ -7,6 +7,7 @@
 
 use gcloud_dot_core::{
     credentials::AdcKind,
+    settings::Theme,
     status::{ago, AuthState, Status},
     Settings,
 };
@@ -26,6 +27,22 @@ pub mod id {
     pub const TRACK_ADC: &str = "set.adc";
     /// Prefix for configuration switching: `config:<name>`.
     pub const CONFIG_PREFIX: &str = "config:";
+    /// Prefix for appearance: `theme:system` | `theme:light` | `theme:dark`.
+    pub const THEME_PREFIX: &str = "theme:";
+}
+
+/// Stable identifiers for the appearance choices, so the menu id and the click
+/// handler cannot drift apart.
+pub fn theme_slug(t: Theme) -> &'static str {
+    match t {
+        Theme::System => "system",
+        Theme::Light => "light",
+        Theme::Dark => "dark",
+    }
+}
+
+pub fn theme_from_slug(slug: &str) -> Option<Theme> {
+    Theme::ALL.iter().copied().find(|t| theme_slug(*t) == slug)
 }
 
 pub struct MenuModel {
@@ -199,7 +216,28 @@ pub fn build(
         settings.track_adc,
         None,
     );
+    // Appearance, on every platform. The details window is often the only one
+    // open on a machine whose global theme was set for something else.
+    let theme_items: Vec<CheckMenuItem> = Theme::ALL
+        .iter()
+        .map(|t| {
+            CheckMenuItem::with_id(
+                format!("{}{}", id::THEME_PREFIX, theme_slug(*t)),
+                t.label(),
+                true,
+                settings.theme == *t,
+                None,
+            )
+        })
+        .collect();
+    let theme_refs: Vec<&dyn IsMenuItem> =
+        theme_items.iter().map(|i| i as &dyn IsMenuItem).collect();
+    let appearance = Submenu::with_items("Appearance", true, &theme_refs).ok();
+
     let mut settings_refs: Vec<&dyn IsMenuItem> = vec![&launch, &notifications, &track_adc];
+    if let Some(sub) = &appearance {
+        settings_refs.push(sub);
+    }
 
     // macOS is the only platform with a text slot beside the icon, so this
     // toggle would mean nothing anywhere else.

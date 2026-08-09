@@ -241,7 +241,7 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                app.panel = None;
+                app.close_panel(target);
             }
 
             _ => {}
@@ -493,6 +493,15 @@ impl App {
             other => {
                 if let Some(name) = other.strip_prefix(menu::id::CONFIG_PREFIX) {
                     self.switch_configuration(name, proxy);
+                } else if let Some(slug) = other.strip_prefix(menu::id::THEME_PREFIX) {
+                    if let Some(theme) = menu::theme_from_slug(slug) {
+                        self.engine.state.settings.theme = theme;
+                        self.save();
+                        // Repaint an open panel immediately; choosing a theme
+                        // and seeing nothing happen reads as a broken setting.
+                        self.refresh_panel();
+                        self.rebuild_menu();
+                    }
                 }
             }
         }
@@ -544,7 +553,7 @@ impl App {
 
     fn toggle_panel(&mut self, target: &tao::event_loop::EventLoopWindowTarget<UserEvent>) {
         if self.panel.is_some() {
-            self.panel = None;
+            self.close_panel(target);
             return;
         }
         self.open_panel(target);
@@ -552,12 +561,15 @@ impl App {
 
     fn open_panel(&mut self, target: &tao::event_loop::EventLoopWindowTarget<UserEvent>) {
         let view = panel::view(&self.engine.status, &self.engine.state);
-        let html = panel::html(&view);
+        let html = panel::document(&view, self.engine.state.settings.theme);
 
         let window = match WindowBuilder::new()
             .with_title("GCloud Dot")
-            .with_inner_size(tao::dpi::LogicalSize::new(400.0, 660.0))
-            .with_resizable(false)
+            .with_inner_size(tao::dpi::LogicalSize::new(420.0, 760.0))
+            // Resizable, with a floor that keeps the two-column detail rows and
+            // the pinned action bar from colliding.
+            .with_min_inner_size(tao::dpi::LogicalSize::new(340.0, 360.0))
+            .with_resizable(true)
             .build(target)
         {
             Ok(w) => w,
@@ -576,9 +588,24 @@ impl App {
             .build(&window);
 
         match webview {
-            Ok(webview) => self.panel = Some((window, webview)),
+            Ok(webview) => {
+                // A window nobody can reach with the app switcher is a window
+                // people lose. macOS hides accessory apps from Cmd-Tab and the
+                // Dock, so become a regular app for as long as this is open and
+                // step back out when it closes — the Dock icon appears only
+                // while there is something to switch to. Windows and Linux put
+                // any real window in Alt-Tab already.
+                set_app_switcher_visible(target, true);
+                window.set_focus();
+                self.panel = Some((window, webview));
+            }
             Err(e) => eprintln!("gcloud-dot: could not create the details webview: {e}"),
         }
+    }
+
+    fn close_panel(&mut self, target: &tao::event_loop::EventLoopWindowTarget<UserEvent>) {
+        self.panel = None;
+        set_app_switcher_visible(target, false);
     }
 
     /// Re-render the open panel in place, so a probe finishing while it is open
@@ -588,12 +615,9 @@ impl App {
             return;
         };
         let view = panel::view(&self.engine.status, &self.engine.state);
-        let html = panel::html(&view);
-        // Replacing the body rather than reloading avoids a visible flash.
-        let script = format!(
-            "document.body.innerHTML = {};",
-            serde_json::to_string(&html).unwrap_or_else(|_| "''".into())
-        );
+        // Swapping the content rather than reloading avoids a visible flash and
+        // keeps the window's scroll position meaningful.
+        let script = panel::refresh_script(&view, self.engine.state.settings.theme);
         let _ = webview.evaluate_script(&script);
     }
 
@@ -634,5 +658,25 @@ fn linux_tray_hint() -> String {
             .to_string()
     } else {
         String::new()
+    }
+}
+
+/// Show or hide the app in the app switcher and the Dock.
+///
+/// macOS only: an accessory app has no Dock tile and no Cmd-Tab entry, which is
+/// right for a menu bar app with no windows and wrong the moment it opens one.
+/// Every other platform lists any real window in its switcher already.
+fn set_app_switcher_visible(
+    _target: &tao::event_loop::EventLoopWindowTarget<UserEvent>,
+    _visible: bool,
+) {
+    #[cfg(target_os = "macos")]
+    {
+        use tao::platform::macos::{ActivationPolicy, EventLoopWindowTargetExtMacOS};
+        _target.set_activation_policy_at_runtime(if _visible {
+            ActivationPolicy::Regular
+        } else {
+            ActivationPolicy::Accessory
+        });
     }
 }

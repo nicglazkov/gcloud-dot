@@ -18,6 +18,7 @@ use gcloud_dot_core::{
     config::ActiveConfig,
     credentials::{AdcFile, AdcKind},
     estimate::{Estimate, EstimateSource},
+    settings::Theme,
     status::{AuthState, Status},
     State,
 };
@@ -63,11 +64,16 @@ fn main() {
         probe_note: None,
     };
 
-    let html = panel::html(&panel::view(&status, &state));
-    std::fs::write(
-        &out,
-        format!("<!doctype html><meta charset=\"utf-8\">{html}"),
-    )
-    .expect("could not write the file");
-    println!("wrote {out}");
+    // Rendered in each theme so a change can be reviewed in both without
+    // toggling the whole machine.
+    for (theme, suffix) in [
+        (Theme::System, ""),
+        (Theme::Light, "-light"),
+        (Theme::Dark, "-dark"),
+    ] {
+        let html = panel::document(&panel::view(&status, &state), theme);
+        let path = out.replace(".html", &format!("{suffix}.html"));
+        std::fs::write(&path, html).expect("could not write the file");
+        println!("wrote {path}");
+    }
 }
