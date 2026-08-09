@@ -23,7 +23,7 @@ ASC_ISSUER_ID := $(call unquote,$(ASC_ISSUER_ID))
 SIGN_IDENTITY ?= -
 TEAM_ID       ?=
 
-.PHONY: all build test lint icons app sign notarize dmg verify clean \
+.PHONY: all build test lint icons app sign notarize dmg dmg-plain verify clean \
         linux-deb linux-appimage windows-zip dist-macos help
 
 help:
@@ -124,22 +124,46 @@ notarize: sign
 	  --key "$(ASC_KEY_PATH)" --key-id "$(ASC_KEY_ID)" --issuer "$(ASC_ISSUER_ID)" --wait
 	xcrun stapler staple "$(DMG)"
 
+# create-dmg produces the laid-out window — icon positions, the Applications
+# drop target — but it gets there by asking hdiutil to mount a scratch image,
+# which needs a mount point under /Volumes. Some hardened environments refuse
+# that, and the failure is a bare "Operation not permitted" that says nothing
+# about why. Where mounting is unavailable, fall back to building the
+# filesystem directly, which needs no mount at all and yields the same
+# drag-to-install contents without the styling.
 dmg:
 	@test -d "$(APP)" || { echo "no app at $(APP); run make app first"; exit 1; }
-	rm -f "$(DMG)"
-	rm -rf build/dmgroot && mkdir -p build/dmgroot
-	cp -R "$(APP)" build/dmgroot/
-	create-dmg \
-	  --volname "GCloud Dot" \
-	  --window-pos 200 120 --window-size 560 380 \
-	  --icon-size 110 \
-	  --icon "GCloud Dot.app" 150 175 \
-	  --app-drop-link 410 175 \
-	  --hide-extension "GCloud Dot.app" \
-	  --no-internet-enable \
-	  "$(DMG)" build/dmgroot
-	rm -rf build/dmgroot
+	@rm -f "$(DMG)"
+	@rm -rf build/dmgroot && mkdir -p build/dmgroot
+	@cp -R "$(APP)" build/dmgroot/
+	@if mkdir "/Volumes/.gclouddot-probe" 2>/dev/null; then \
+	  rmdir "/Volumes/.gclouddot-probe"; \
+	  echo "building a laid-out disk image with create-dmg"; \
+	  create-dmg \
+	    --volname "GCloud Dot" \
+	    --window-pos 200 120 --window-size 560 380 \
+	    --icon-size 110 \
+	    --icon "GCloud Dot.app" 150 175 \
+	    --app-drop-link 410 175 \
+	    --hide-extension "GCloud Dot.app" \
+	    --no-internet-enable \
+	    "$(DMG)" build/dmgroot; \
+	else \
+	  echo "cannot mount under /Volumes; building the image directly instead"; \
+	  $(MAKE) dmg-plain; \
+	fi
+	@rm -rf build/dmgroot
 	@echo "wrote $(DMG)"
+
+# Builds the image without mounting anything. Used automatically by `dmg` when
+# mounting is unavailable, and directly useful for a reproducible build.
+dmg-plain:
+	@test -d build/dmgroot || { rm -rf build/dmgroot && mkdir -p build/dmgroot && cp -R "$(APP)" build/dmgroot/; }
+	@ln -sfn /Applications build/dmgroot/Applications
+	@rm -f build/raw.dmg "$(DMG)"
+	hdiutil makehybrid -quiet -hfs -hfs-volume-name "GCloud Dot" -o build/raw.dmg build/dmgroot
+	hdiutil convert build/raw.dmg -quiet -format UDZO -imagekey zlib-level=9 -o "$(DMG)"
+	@rm -f build/raw.dmg
 
 dist-macos: notarize verify
 
