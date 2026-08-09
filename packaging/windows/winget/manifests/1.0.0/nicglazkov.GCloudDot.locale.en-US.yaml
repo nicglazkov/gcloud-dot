@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: nicglazkov.GCloudDot
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: Nicholas Glazkov
+PublisherUrl: https://github.com/nicglazkov
+PublisherSupportUrl: https://github.com/nicglazkov/gcloud-dot/issues
+PackageName: GCloud Dot
+PackageUrl: https://nicglazkov.github.io/gcloud-dot/
+License: MIT
+LicenseUrl: https://github.com/nicglazkov/gcloud-dot/blob/main/LICENSE
+ShortDescription: Shows whether your gcloud session is alive and how long it has left
+Description: |-
+  GCloud Dot puts a dot in the system tray that reports whether your gcloud
+  credentials are still valid and, when they are, roughly how long they have
+  left.
+
+  Whether the session is alive is measured by running gcloud. How long it has
+  left is predicted from sessions already observed ending, and the interface
+  always says which of the two it is showing. A dropped network is reported as
+  unknown rather than as an expiry.
+
+  Includes the gcloud-dot command for scripts, shell prompts, and servers.
+Moniker: gcloud-dot
+Tags:
+  - gcloud
+  - gcp
+  - google-cloud
+  - authentication
+  - developer-tools
+  - tray
+ReleaseNotesUrl: https://github.com/nicglazkov/gcloud-dot/releases/tag/v1.0.0
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
