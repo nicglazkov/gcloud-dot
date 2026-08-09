@@ -1,0 +1,28 @@
+[workspace]
+members = ["crates/core", "crates/cli", "crates/app"]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.89"
+license = "MIT"
+authors = ["Nicholas Glazkov"]
+repository = "https://github.com/nicglazkov/gcloud-dot"
+homepage = "https://nicglazkov.github.io/gcloud-dot/"
+
+[workspace.dependencies]
+gcloud-dot-core = { path = "crates/core", version = "1.0.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+dirs = "5"
+
+# Size matters for a tray app that is resident all day, but not at the cost of
+# the arithmetic in the estimator. opt-level "s" with fat LTO lands around 3 MB
+# per binary while keeping the hot loop honest.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

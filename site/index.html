@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GCloud Dot — know before your gcloud session expires</title>
+<meta name="description" content="A menu bar and system tray dot that shows whether your gcloud auth session is alive and roughly how long it has left. macOS, Windows, Linux. Free and MIT licensed.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="img/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="img/icon.png">
+<meta property="og:title" content="GCloud Dot">
+<meta property="og:description" content="Know before your gcloud session expires, not after your next command fails.">
+<meta property="og:image" content="https://nicglazkov.github.io/gcloud-dot/img/icon.png">
+<meta property="og:url" content="https://nicglazkov.github.io/gcloud-dot/">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="style.css">
+<!-- Applied before the first paint; a deferred file would flash the wrong theme. -->
+<script>(function(){try{var t=localStorage.getItem("gclouddot-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+</head>
+<body>
+
+<div class="bar"><div class="shell">
+  <a class="brand" href="index.html"><img src="img/icon.png" alt=""><b>GCloud Dot</b></a>
+  <span class="grow"></span>
+  <nav>
+    <a href="#install">Install</a>
+    <a href="#how">How it works</a>
+    <a href="#faq">FAQ</a>
+    <a href="requirements.html">Requirements</a>
+    <a href="https://github.com/nicglazkov/gcloud-dot">GitHub</a>
+  </nav>
+  <div class="themer" role="group" aria-label="Color theme">
+    <button id="lightBtn" title="Light" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <button id="darkBtn" title="Dark" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+    </button>
+  </div>
+</div></div>
+
+<div class="shell">
+
+  <header class="hero">
+    <img class="icon" src="img/icon.png" alt="" width="96" height="96">
+    <h1>Know before your gcloud<br>session expires.</h1>
+    <p class="lede">A dot in your menu bar that says whether your credentials are alive, and how long they have left.</p>
+    <div class="cta">
+      <a class="fill" href="#install">Install GCloud Dot</a>
+      <a class="ghost" href="https://github.com/nicglazkov/gcloud-dot">See the source</a>
+    </div>
+    <p class="fineprint">macOS, Windows, Linux · MIT licensed · no account, no telemetry</p>
+  </header>
+
+  <section class="panel">
+    <h2>The dot tells you two different things</h2>
+    <p class="note">And it never lets you mistake one for the other.</p>
+    <div class="states">
+      <figure><img src="img/icon-ok.png" alt="A green dot reading 14h"><figcaption><b>Signed in</b><span>over 2 hours left</span></figcaption></figure>
+      <figure><img src="img/icon-warn.png" alt="A yellow dot reading 99m"><figcaption><b>Under 2 hours</b><span>finish what you're doing</span></figcaption></figure>
+      <figure><img src="img/icon-soon.png" alt="An orange dot reading 22m"><figcaption><b>Under 30 minutes</b><span>re-auth before it bites</span></figcaption></figure>
+      <figure><img src="img/icon-expired.png" alt="A red dot with an exclamation mark"><figcaption><b>Signed out</b><span>measured, not guessed</span></figcaption></figure>
+      <figure><img src="img/icon-unknown.png" alt="A grey dot with a question mark"><figcaption><b>Unknown</b><span>the check didn't complete</span></figcaption></figure>
+    </div>
+    <p><strong>Red is always a fact.</strong> It appears only after a real
+    <code>gcloud</code> command has come back refusing the credential. A dropped
+    network never turns the dot red, because "I could not reach Google" is not
+    the same as "you are signed out" — and a dot that cries wolf is a dot you
+    learn to ignore.</p>
+    <p><strong>The countdown is always an estimate,</strong> and the app says so
+    everywhere it shows one. Google does not publish your session deadline to
+    your machine, so there is nothing to read. It has to be learned.</p>
+  </section>
+
+  <section class="panel getit" id="install">
+    <h2>Install</h2>
+    <p class="note">Every download includes the app and the <code>gcloud-dot</code> command.</p>
+
+    <div class="tabrow">
+      <div class="tabs" role="tablist" aria-label="Operating system">
+        <button id="tab-macos" role="tab" aria-controls="pane-macos" aria-selected="true">macOS</button>
+        <button id="tab-windows" role="tab" aria-controls="pane-windows" aria-selected="false">Windows</button>
+        <button id="tab-linux" role="tab" aria-controls="pane-linux" aria-selected="false">Linux</button>
+      </div>
+      <span class="ver" id="ver" hidden></span>
+    </div>
+
+    <div class="osp" id="pane-macos" role="tabpanel" aria-labelledby="tab-macos">
+      <div class="dlrow">
+        <a class="dl primary" data-asset=".dmg" href="https://github.com/nicglazkov/gcloud-dot/releases/latest">
+          <span class="t">Download the DMG</span>
+          <span class="s">macOS 13 or later · Apple silicon and Intel</span>
+        </a>
+      </div>
+      <p class="dlnote">Open the disk image and drag GCloud Dot to Applications.
+      Signed with a Developer ID certificate and notarized by Apple, with the
+      ticket stapled to both the app and the disk image, so it opens on the
+      first double click even with no network.</p>
+      <h3>Homebrew</h3>
+      <pre><code>brew install --cask nicglazkov/tap/gcloud-dot</code></pre>
+      <p class="dlnote">Homebrew may ask you to trust the tap once before it will load a cask from it:
+      <code>brew tap nicglazkov/tap</code>.</p>
+    </div>
+
+    <div class="osp" id="pane-windows" role="tabpanel" aria-labelledby="tab-windows" hidden>
+      <div class="dlrow">
+        <a class="dl primary" data-asset="setup.exe" href="https://github.com/nicglazkov/gcloud-dot/releases/latest">
+          <span class="t">Download the installer</span>
+          <span class="s">Windows 10 1809 or later · 64 bit</span>
+        </a>
+      </div>
+      <p class="dlnote">The installer writes only inside your user account and never
+      asks for administrator rights. It is not code-signed yet, so SmartScreen
+      shows <em>"Windows protected your PC"</em>. Click <b>More info</b>, then
+      <b>Run anyway</b>.</p>
+      <h3>PowerShell</h3>
+      <pre><code>irm https://raw.githubusercontent.com/nicglazkov/gcloud-dot/main/install/install.ps1 | iex</code></pre>
+      <p class="dlnote">Windows 11 hides new tray icons behind the overflow arrow.
+      Drag the dot out of it once and it stays on the taskbar.</p>
+    </div>
+
+    <div class="osp" id="pane-linux" role="tabpanel" aria-labelledby="tab-linux" hidden>
+      <div class="dlrow">
+        <a class="dl primary" data-asset=".deb" href="https://github.com/nicglazkov/gcloud-dot/releases/latest">
+          <span class="t">Download the DEB</span>
+          <span class="s">Debian, Ubuntu, and other apt distributions</span>
+        </a>
+        <a class="dl second" data-asset=".AppImage" href="https://github.com/nicglazkov/gcloud-dot/releases/latest">
+          <span class="t">Download the AppImage</span>
+          <span class="s">Everything else · x86-64</span>
+        </a>
+      </div>
+      <h3>Shell</h3>
+      <pre><code>curl -fsSL https://raw.githubusercontent.com/nicglazkov/gcloud-dot/main/install/install.sh | sh</code></pre>
+      <p class="dlnote">On a server with no desktop, add <code>--no-gui</code> to install
+      only the command.</p>
+      <h3>Arch</h3>
+      <pre><code>yay -S gcloud-dot</code></pre>
+      <p class="dlnote"><b>GNOME needs an extension.</b> GNOME has shipped no system tray
+      since 3.26, so without
+      <a href="https://extensions.gnome.org/extension/615/appindicator-support/">AppIndicator support</a>
+      the dot has nowhere to appear. GCloud Dot detects this at startup and says so
+      rather than starting invisibly. Everything else, including
+      <code>gcloud-dot status</code>, works regardless.</p>
+    </div>
+  </section>
+
+  <section class="panel" id="how">
+    <h2>How it works</h2>
+    <p class="note">Two mechanisms. The interface always says which one it is quoting.</p>
+
+    <div class="pair">
+      <div class="chip">
+        <h3>Measuring, for the state</h3>
+        <p>Every ten minutes it runs <code>gcloud auth print-access-token</code>.
+        A token means the credential is alive. An <code>invalid_grant</code> or
+        a reauth error means it is gone. Anything else — a timeout, a captive
+        portal — is reported as unknown and leaves the previous verdict standing.</p>
+      </div>
+      <div class="chip">
+        <h3>Learning, for the countdown</h3>
+        <p>When a session is caught expiring, its length is recorded. After three
+        such observations the countdown is the median of them. Before that it
+        falls back to the gaps between your past logins, and says that it is doing so.</p>
+      </div>
+    </div>
+
+    <h3 class="sub">Where the numbers come from</h3>
+    <p>The moment a session ends is never observed exactly; it happens somewhere
+    between the last check that succeeded and the first that failed. GCloud Dot
+    records the <strong>midpoint</strong> of that interval rather than the failure,
+    which halves the error instead of overstating every session by one full
+    polling interval. As the predicted expiry approaches it also polls more
+    often, so the measurement that trains the next estimate is the most accurate
+    one it takes.</p>
+    <p>On the machine this was built against, eighteen observed sessions landed
+    between <b>15.91h</b> and <b>16.08h</b> — converging, without being told, on
+    Google's documented sixteen-hour default.</p>
+
+    <h3 class="sub">It reads your login history from gcloud's own logs</h3>
+    <p>gcloud writes a log for every command it runs. GCloud Dot looks for
+    completed <code>gcloud auth login</code> invocations to find when your
+    current session began, and rescans once a minute — so signing in from any
+    terminal, on any tab, resets the countdown within a minute without you
+    telling the app anything.</p>
+  </section>
+
+  <section class="panel">
+    <h2>It also watches the credential that actually breaks your code</h2>
+    <p class="note">Application default credentials expire on their own schedule.</p>
+    <p>The most confusing failure in local GCP development is the one where
+    <code>gcloud</code> works perfectly and your program does not. That is
+    almost always application default credentials, which are a separate
+    credential with a separate lifetime and no visible indicator anywhere.
+    GCloud Dot tracks them alongside your login and reports them separately, so
+    the answer takes a glance instead of half an hour.</p>
+    <p>It will also tell you when a service account key file has been sitting
+    unrotated for months — reported honestly as the file's age, since a
+    downloaded key carries no creation date to read.</p>
+  </section>
+
+  <section class="panel">
+    <h2>There is a command, too</h2>
+    <p class="note">The same engine, for prompts, scripts, and machines with no desktop.</p>
+    <pre><code>$ gcloud-dot
+🟢 signed in — about 14h 12m left (measured, n=18)
+  account       nic@glazkov.com
+  project       my-project
+  configuration default
+  last login    Fri Aug 8, 06:31 (2h ago)
+  est. expiry   Fri 22:33 — 14h 12m left
+  session       16.1h (measured, n=18)</code></pre>
+    <p>Exit codes are part of the interface — <code>0</code> signed in,
+    <code>1</code> signed out, <code>2</code> unknown — so a shell prompt or a
+    CI step can branch on it without parsing anything.
+    <code>--json</code> gives a stable document including
+    <code>estimate_is_measured</code>, so anything consuming it can tell a
+    measurement from a guess.</p>
+  </section>
+
+  <section class="panel" id="faq">
+    <h2>Questions</h2>
+
+    <details class="qa"><summary>Does polling keep my session alive?</summary>
+    <p>No, and this matters enough to be worth stating plainly. Refreshing an
+    access token does not extend a reauth session: the session length is fixed
+    when the session is created. That is precisely why it is safe to check every
+    ten minutes without corrupting the very measurement being taken.</p></details>
+
+    <details class="qa"><summary>Why is the countdown an estimate at all?</summary>
+    <p>Because Google does not tell your machine when the session ends. The
+    deadline is enforced server side and never handed to the client, so the only
+    way to know the length is to watch one end. That is what GCloud Dot does,
+    and it labels every number with how much evidence is behind it.</p></details>
+
+    <details class="qa"><summary>What does it send anywhere?</summary>
+    <p>Nothing. There is no account, no telemetry, and no server. The only
+    network traffic is <code>gcloud</code> talking to Google exactly as it
+    already does, plus one request a day to GitHub's releases API to see whether
+    a newer version exists — which you can turn off.</p></details>
+
+    <details class="qa"><summary>Does it need any permissions?</summary>
+    <p>None. No Accessibility, no Screen Recording, no administrator rights on
+    any platform. It reads gcloud's own configuration directory, runs the gcloud
+    binary, and draws an icon.</p></details>
+
+    <details class="qa"><summary>Will it update itself?</summary>
+    <p>It checks and tells you; it never replaces its own files. On every
+    platform something else owns those files — Homebrew, winget, apt, the
+    installer — and a self-updater writing over them leaves your package manager
+    describing a version that is no longer on disk.</p></details>
+
+    <details class="qa"><summary>I used the older script installer. What happens?</summary>
+    <p>It is replaced cleanly. GCloud Dot keeps the same identity as the
+    shell-installed macOS app and the PowerShell tray that came before it, so
+    your measured session lengths carry across and the old login item is retired
+    on first launch. Nothing is deleted; the old app bundle stays where it is
+    until you remove it.</p></details>
+  </section>
+
+  <footer>
+    <p>
+      <a href="https://github.com/nicglazkov/gcloud-dot">Source</a> ·
+      <a href="requirements.html">Requirements</a> ·
+      <a href="privacy.html">Privacy</a> ·
+      <a href="security.html">Security</a> ·
+      <a href="https://github.com/nicglazkov/gcloud-dot/releases">Releases</a>
+    </p>
+    <p class="fineprint">MIT licensed. Not affiliated with Google. “gcloud” and
+    “Google Cloud” are trademarks of Google LLC.</p>
+  </footer>
+</div>
+
+<script src="theme.js"></script>
+<script>
+// Operating system tabs, plus a best guess at which one you are on.
+(function () {
+  var tabs = ["macos", "windows", "linux"];
+  function show(which) {
+    tabs.forEach(function (t) {
+      var tab = document.getElementById("tab-" + t);
+      var pane = document.getElementById("pane-" + t);
+      var on = t === which;
+      tab.setAttribute("aria-selected", String(on));
+      pane.hidden = !on;
+    });
+  }
+  tabs.forEach(function (t) {
+    document.getElementById("tab-" + t).addEventListener("click", function () { show(t); });
+  });
+  var ua = navigator.userAgent;
+  if (/Windows/i.test(ua)) show("windows");
+  else if (/Linux|X11/i.test(ua) && !/Android/i.test(ua)) show("linux");
+
+  // Point each download straight at the current release asset. Failure is fine:
+  // every button already links to the releases page, which is never wrong.
+  fetch("https://api.github.com/repos/nicglazkov/gcloud-dot/releases/latest")
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+    .then(function (rel) {
+      var v = document.getElementById("ver");
+      v.textContent = rel.tag_name;
+      v.hidden = false;
+      document.querySelectorAll("[data-asset]").forEach(function (a) {
+        var want = a.getAttribute("data-asset");
+        var hit = (rel.assets || []).find(function (as) {
+          return as.name.indexOf(want) !== -1;
+        });
+        if (hit) a.href = hit.browser_download_url;
+      });
+    })
+    .catch(function () {});
+})();
+</script>
+</body>
+</html>

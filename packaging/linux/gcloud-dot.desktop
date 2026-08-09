@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=GCloud Dot
+GenericName=gcloud session monitor
+Comment=Shows how long your gcloud auth session has left
+Exec=gcloud-dot-tray
+Icon=gcloud-dot
+Terminal=false
+Categories=Development;Utility;
+Keywords=gcloud;gcp;google;cloud;auth;session;
+StartupNotify=false

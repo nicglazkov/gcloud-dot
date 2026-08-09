@@ -1,0 +1,220 @@
+name: Release
+
+# Tagging v* builds every platform and publishes the release. The install
+# scripts download from here, which is what keeps a Rust toolchain off the
+# machines people actually install this on.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One universal macOS build rather than per-architecture jobs: GitHub
+          # has retired its Intel macOS runners, so an x86_64 job never starts.
+          - label: macos-universal
+            runner: macos-14
+            platform: macos-universal
+          - label: linux-x86_64
+            runner: ubuntu-22.04
+            platform: linux-x86_64
+          - label: linux-aarch64
+            runner: ubuntu-22.04-arm
+            platform: linux-aarch64
+          - label: windows-x86_64
+            runner: windows-2022
+            platform: windows-x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # A tag that disagrees with the crate version ships binaries whose
+      # --version, update check, and About line all report the wrong number.
+      # Cheap to check, and invisible until somebody reads it back.
+      - name: Tag must match the crate version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          tag="${REF_NAME#v}"
+          echo "tag=$tag crate=$crate"
+          [ "$tag" = "$crate" ] || { echo "::error::tag $tag != crate $crate"; exit 1; }
+
+      - name: Install Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev imagemagick
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --workspace --release
+
+      # ---------------------------------------------------------------- macOS
+      - name: Build universal binaries
+        if: runner.os == 'macOS'
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          mkdir -p dist
+          for bin in gcloud-dot gcloud-dot-tray; do
+            lipo -create -output "dist/$bin" \
+              "target/aarch64-apple-darwin/release/$bin" \
+              "target/x86_64-apple-darwin/release/$bin"
+          done
+
+      # Signing material is optional. Without it the job still produces working
+      # artifacts, just ones Gatekeeper will warn about, so a fork can build a
+      # release without needing an Apple account.
+      - name: Import signing certificate
+        if: runner.os == 'macOS' && env.MACOS_CERT_P12 != ''
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          echo "$MACOS_CERT_P12" | base64 --decode > /tmp/cert.p12
+          security create-keychain -p actions build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p actions build.keychain
+          security import /tmp/cert.p12 -k build.keychain \
+            -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k actions build.keychain
+          rm -f /tmp/cert.p12
+
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        run: |
+          brew install create-dmg
+          if [ -n "$ASC_KEY_P8" ]; then
+            echo "$ASC_KEY_P8" | base64 --decode > /tmp/asc.p8
+            cat > signing.env <<EOF
+          SIGN_IDENTITY="$SIGN_IDENTITY"
+          ASC_KEY_PATH="/tmp/asc.p8"
+          ASC_KEY_ID="$ASC_KEY_ID"
+          ASC_ISSUER_ID="$ASC_ISSUER_ID"
+          EOF
+            make notarize
+            make verify
+            mv GCloud-Dot-*.dmg dist/
+          else
+            # Build it anyway, so a packaging break is caught here rather than
+            # at release time — but do not publish it. An unsigned DMG that
+            # looks official is worse than no DMG: it trains people to click
+            # through the one warning that is supposed to mean something.
+            echo "::warning::No signing secrets. Building the app to prove it packages, but not publishing a DMG."
+            make app
+            make dmg
+            rm -f GCloud-Dot-*.dmg
+          fi
+          rm -f /tmp/asc.p8 signing.env
+          tar -czf "dist/gcloud-dot-macos-universal.tar.gz" -C dist gcloud-dot gcloud-dot-tray
+
+      # ---------------------------------------------------------------- Linux
+      - name: Build and package Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          cargo build --release
+          mkdir -p dist
+          cp target/release/gcloud-dot target/release/gcloud-dot-tray dist/
+          tar -czf "dist/gcloud-dot-${PLATFORM}.tar.gz" -C dist gcloud-dot gcloud-dot-tray
+          version="${REF_NAME#v}"
+          [ "$version" = "$REF_NAME" ] && version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          case "$PLATFORM" in
+            linux-x86_64)  debarch=amd64 ;;
+            linux-aarch64) debarch=arm64 ;;
+          esac
+          bash packaging/linux/build-deb.sh "$version" "$debarch" target/release
+          mv ./*.deb dist/
+          if [ "$PLATFORM" = "linux-x86_64" ]; then
+            bash packaging/linux/build-appimage.sh "$version" x86_64 target/release
+            mv ./*.AppImage dist/
+          fi
+
+      # -------------------------------------------------------------- Windows
+      - name: Build and package Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          cargo build --release
+          mkdir -p dist
+          cp target/release/gcloud-dot.exe target/release/gcloud-dot-tray.exe dist/
+          cd dist && 7z a "gcloud-dot-windows-x86_64.zip" gcloud-dot.exe gcloud-dot-tray.exe && cd ..
+          version="${REF_NAME#v}"
+          [ "$version" = "$REF_NAME" ] && version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          cp target/release/gcloud-dot.exe target/release/gcloud-dot-tray.exe packaging/windows/
+          choco install nsis -y --no-progress
+          "/c/Program Files (x86)/NSIS/makensis.exe" -DVERSION="$version" packaging/windows/installer.nsi
+          mv packaging/windows/*setup.exe dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.dmg
+            dist/*.deb
+            dist/*.AppImage
+            dist/*setup.exe
+          # The DMG is absent unless signing secrets are configured, so this
+          # only asserts that *something* was produced for each platform.
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List what is about to be published
+        run: ls -la artifacts
+
+      # Checksums, so anyone downloading a binary from a release page can tell
+      # whether they got the file this workflow built.
+      - name: Checksums
+        run: |
+          cd artifacts
+          sha256sum ./* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

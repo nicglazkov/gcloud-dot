@@ -1,0 +1,23 @@
+[package]
+name = "gcloud-dot-cli"
+description = "Command line companion for GCloud Dot: gcloud session status for scripts, prompts, and headless machines."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+# Deliberately free of any GUI dependency so this builds and runs on a headless
+# server, where the tray could not start and the status still matters.
+[[bin]]
+name = "gcloud-dot"
+path = "src/main.rs"
+
+[dependencies]
+gcloud-dot-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+clap = { version = "4", features = ["derive"] }

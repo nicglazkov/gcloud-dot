@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Security — GCloud Dot</title>
+<meta name="description" content="GCloud Dot's trust model: what it can touch, how releases are signed, and how to verify a download.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="stylesheet" href="style.css">
+<script>(function(){try{var t=localStorage.getItem("gclouddot-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+</head>
+<body>
+
+<div class="bar"><div class="shell">
+  <a class="brand" href="index.html"><img src="img/icon.png" alt=""><b>GCloud Dot</b></a>
+  <span class="grow"></span>
+  <nav>
+    <a href="index.html#install">Install</a>
+    <a href="requirements.html">Requirements</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+  <div class="themer" role="group" aria-label="Color theme">
+    <button id="lightBtn" title="Light" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+    <button id="darkBtn" title="Dark" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+    </button>
+  </div>
+</div></div>
+
+<div class="shell">
+  <header class="subhead">
+    <a class="back" href="index.html">← GCloud Dot</a>
+    <h1>Security</h1>
+    <p>An app that watches your cloud credentials should be able to say precisely what it can touch.</p>
+  </header>
+
+  <section class="panel">
+    <h2>It never handles your credentials</h2>
+    <p>This is the design decision the rest of the trust model rests on.</p>
+    <p>GCloud Dot does not read, copy, cache, or transmit tokens. It asks gcloud
+    a question — <code>auth print-access-token</code> — and looks only at whether
+    the command succeeded and, if not, at which error it printed. The token
+    itself is discarded without ever being examined.</p>
+    <p>It follows that a compromise of this app grants no credential it did not
+    already have. Anything able to run it could have run gcloud directly.</p>
+  </section>
+
+  <section class="panel">
+    <h2>What it can reach</h2>
+    <ul>
+      <li><b>Reads</b> gcloud's configuration directory, gcloud's command logs, and the application default credentials file — the last for its <em>type</em> and modification time, never its contents.</li>
+      <li><b>Writes</b> one JSON file in your own data directory, plus a login item you control from the menu.</li>
+      <li><b>Runs</b> the gcloud binary, and a terminal when you click Sign in.</li>
+      <li><b>Requests</b> nothing over the network in its own right except the optional daily update check.</li>
+    </ul>
+    <p>No permission covers any of that on any platform, which is why the app
+    never asks for one. It is not sandboxed and does not claim to be.</p>
+  </section>
+
+  <section class="panel">
+    <h2>The details window</h2>
+    <p>The panel is rendered in the system webview from a string of HTML built
+    inside the app. It loads no remote content, has no network access it could
+    use, and executes no script that did not ship in the binary.</p>
+    <p>Every value that reaches it from outside — your account address, project
+    id, and configuration name — is HTML-escaped before it is inserted, and
+    there is a test that fails if that stops being true. A configuration name is
+    arbitrary text a user typed, so it is treated as hostile.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Releases</h2>
+    <h3 class="sub">macOS</h3>
+    <p>Signed with a Developer ID certificate, hardened runtime enabled, and
+    notarized by Apple. The app is notarized and stapled <em>before</em> the disk
+    image is built, and the disk image is then notarized and stapled itself.</p>
+    <p>That second step is easy to skip and worth insisting on: notarizing only
+    the DMG leaves the app inside it without a ticket. Gatekeeper covers for
+    that by asking Apple online, so the gap is invisible on a connected machine
+    and blocks the person whose first launch is offline — on a plane, or behind
+    a captive portal, which is exactly when someone reaches for a tool about
+    expired credentials.</p>
+    <p>To check for yourself:</p>
+    <pre><code>spctl -a -vvv -t install "/Applications/GCloud Dot.app"
+xcrun stapler validate "/Applications/GCloud Dot.app"</code></pre>
+
+    <h3 class="sub">Windows</h3>
+    <p>Not code-signed yet, so SmartScreen warns on first run. Stated plainly
+    rather than buried: a certificate is a recurring cost this project has not
+    taken on. Verify the checksum instead.</p>
+
+    <h3 class="sub">Every platform</h3>
+    <p>Each release carries <code>SHA256SUMS.txt</code>, generated by the same
+    workflow run that built the binaries. Every artifact is built in public by
+    GitHub Actions from a tagged commit, and the whole build is readable in
+    <code>.github/workflows/release.yml</code>.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Dependencies</h2>
+    <p>Deliberately few. The engine uses only serialisation and date handling.
+    The tray adds the icon, menu, webview, and notification libraries it cannot
+    reasonably reimplement. There is no HTTP client and no TLS stack: the update
+    check shells out to <code>curl</code>, which every supported system already
+    ships, rather than linking a dependency tree larger than the rest of the app
+    for one request a day.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Reporting something</h2>
+    <p>Email <a href="mailto:nic@glazkov.com">nic@glazkov.com</a>, or open a
+    <a href="https://github.com/nicglazkov/gcloud-dot/security/advisories/new">private
+    advisory</a> on GitHub. Please do not open a public issue for a
+    vulnerability until it is fixed.</p>
+    <p class="updated">This page describes GCloud Dot 1.0.0.</p>
+  </section>
+
+  <footer>
+    <p>
+      <a href="index.html">Home</a> ·
+      <a href="requirements.html">Requirements</a> ·
+      <a href="privacy.html">Privacy</a> ·
+      <a href="https://github.com/nicglazkov/gcloud-dot">Source</a>
+    </p>
+  </footer>
+</div>
+<script src="theme.js"></script>
+</body>
+</html>

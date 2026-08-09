@@ -1,0 +1,30 @@
+[package]
+name = "gcloud-dot-app"
+description = "Menu bar and system tray app for GCloud Dot."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[[bin]]
+name = "gcloud-dot-tray"
+path = "src/main.rs"
+
+[dependencies]
+gcloud-dot-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+tray-icon = "0.24.2"
+tao = "0.36.0"
+wry = "0.56.0"
+notify-rust = "4.17.0"
+ab_glyph = "0.2.32"
+dirs.workspace = true
+
+[dev-dependencies]
+png = "0.18.1"
+tempfile = "3.27.0"

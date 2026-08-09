@@ -1,0 +1,27 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Build products
+/build
+/dist
+*.dmg
+*.zip
+*.deb
+*.AppImage
+*.exe
+
+# Signing material. Never commit anything that identifies the publisher or,
+# worse, authenticates as them.
+signing.env
+*.p8
+*.p12
+*.mobileprovision
+
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.swp

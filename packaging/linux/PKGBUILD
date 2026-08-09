@@ -1,0 +1,42 @@
+# Maintainer: Nicholas Glazkov <nic@glazkov.com>
+pkgname=gcloud-dot
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Shows how long your gcloud auth session has left, from the system tray"
+arch=('x86_64' 'aarch64')
+url="https://github.com/nicglazkov/gcloud-dot"
+license=('MIT')
+depends=('gtk3' 'webkit2gtk-4.1')
+# The tray needs an indicator host; the gcloud-dot command does not, and on a
+# headless Arch box that command is the entire point.
+optdepends=('libayatana-appindicator: system tray icon'
+            'google-cloud-cli: the gcloud command this monitors')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --release --locked
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --release --locked --workspace
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 target/release/gcloud-dot "$pkgdir/usr/bin/gcloud-dot"
+  install -Dm755 target/release/gcloud-dot-tray "$pkgdir/usr/bin/gcloud-dot-tray"
+  install -Dm644 packaging/linux/gcloud-dot.desktop \
+    "$pkgdir/usr/share/applications/gcloud-dot.desktop"
+  install -Dm644 site/img/appicon.png \
+    "$pkgdir/usr/share/icons/hicolor/256x256/apps/gcloud-dot.png"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 assets/Inconsolata-OFL.txt \
+    "$pkgdir/usr/share/licenses/$pkgname/Inconsolata-OFL.txt"
+}

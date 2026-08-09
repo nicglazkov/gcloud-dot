@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The app is hardened but not sandboxed, and asks for nothing beyond the
+	  default. It reads gcloud's own configuration directory, runs the gcloud
+	  binary, and draws a menu bar item. There is no entitlement for any of
+	  that, which is the point: nothing here needs a TCC prompt, so the user is
+	  never asked to grant anything.
+
+	  This file exists so the signing command has a stable, reviewable answer to
+	  "what does it ask for?" — namely, nothing.
+	-->
+</dict>
+</plist>
