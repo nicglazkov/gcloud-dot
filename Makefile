@@ -120,6 +120,11 @@ notarize: sign
 	xcrun stapler staple "$(APP)"
 	rm -f build/notarize.zip
 	$(MAKE) dmg
+	@# Signing the disk image is not optional the way it looks. Notarizing and
+	@# stapling an unsigned image still leaves `spctl -a -t open` reporting
+	@# "no usable signature": the ticket attests that the contents were checked,
+	@# while nothing attests to who produced the container holding them.
+	codesign --force --timestamp -s "$(SIGN_IDENTITY)" "$(DMG)"
 	xcrun notarytool submit "$(DMG)" \
 	  --key "$(ASC_KEY_PATH)" --key-id "$(ASC_KEY_ID)" --issuer "$(ASC_ISSUER_ID)" --wait
 	xcrun stapler staple "$(DMG)"
@@ -177,6 +182,8 @@ verify:
 	@xcrun stapler validate "$(APP)" || true
 	@echo "--- ticket stapled to the dmg? ---"
 	@test -f "$(DMG)" && xcrun stapler validate "$(DMG)" || echo "(no dmg built)"
+	@echo "--- gatekeeper on the dmg, as a download ---"
+	@test -f "$(DMG)" && spctl -a -vvv -t open --context context:primary-signature "$(DMG)" || true
 	@echo "--- architectures ---"
 	@lipo -archs "$(APP)/Contents/MacOS/GCloudDot" || true
 
