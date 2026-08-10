@@ -239,6 +239,12 @@
     already does, plus one request a day to GitHub's releases API to see whether
     a newer version exists, which you can turn off.</p></details>
 
+    <details class="qa"><summary>What happens when I click Sign in?</summary>
+    <p>The app runs <code>gcloud auth login</code> directly and gcloud opens your
+    browser, which is the whole of the visible flow. There is no terminal window
+    and no shell involved on any platform. If the sign in does not finish, the
+    app tells you why and points at the full output.</p></details>
+
     <details class="qa"><summary>Does it need any permissions?</summary>
     <p>None. No Accessibility, no Screen Recording, no administrator rights on
     any platform. It reads gcloud's own configuration directory, runs the gcloud

@@ -52,7 +52,7 @@
     <ul>
       <li><b>Reads</b> gcloud's configuration directory, gcloud's command logs, and the application default credentials file, the last for its <em>type</em> and modification time, never its contents.</li>
       <li><b>Writes</b> one JSON file in your own data directory, plus a login item you control from the menu.</li>
-      <li><b>Runs</b> the gcloud binary, and a terminal when you click Sign in.</li>
+      <li><b>Runs</b> the gcloud binary directly, with no shell and no terminal window. Signing in hands off to your browser, which gcloud opens itself.</li>
       <li><b>Requests</b> nothing over the network in its own right except the optional daily update check.</li>
     </ul>
     <p>No permission covers any of that on any platform, which is why the app

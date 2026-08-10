@@ -26,7 +26,7 @@ have: anything able to run it could have run `gcloud` directly.
 |---|---|
 | **Reads** | gcloud's configuration directory, gcloud's command logs, and the application default credentials file, the last for its *type* and modification time, never its contents |
 | **Writes** | one JSON file in your own data directory, and a login item you control from the menu |
-| **Runs** | the gcloud binary, and a terminal when you click Sign in |
+| **Runs** | the gcloud binary, with no shell and no terminal window |
 | **Sends** | nothing, except the optional daily check of GitHub's public releases endpoint |
 
 No operating system permission covers any of that, which is why the app never
