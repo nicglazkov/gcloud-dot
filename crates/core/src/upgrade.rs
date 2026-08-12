@@ -118,11 +118,18 @@ pub fn classify(exe: &Path, e: Evidence) -> InstallKind {
     }
     // A binary under a system prefix that no package manager claims is still
     // not ours to overwrite: it needs root, and something put it there.
-    let p = exe.to_string_lossy();
-    let under_system_prefix =
-        p.starts_with("/usr/") || (p.starts_with("/opt/") && !p.contains("homebrew"));
-    if under_system_prefix {
-        return InstallKind::DebPackage;
+    //
+    // Linux only. On macOS there is no dpkg to have put it there, and
+    // /usr/local is where Homebrew itself lives on every Intel Mac, so this
+    // rule read an ordinary cask install as a Debian package and told the user
+    // to run apt.
+    if cfg!(all(unix, not(target_os = "macos"))) {
+        let p = exe.to_string_lossy();
+        let under_system_prefix =
+            p.starts_with("/usr/") || (p.starts_with("/opt/") && !p.contains("homebrew"));
+        if under_system_prefix {
+            return InstallKind::DebPackage;
+        }
     }
     InstallKind::SelfManaged
 }
@@ -134,7 +141,13 @@ pub fn classify(exe: &Path, e: Evidence) -> InstallKind {
 /// to that cask", and answering the easier question would tell a developer
 /// running a build out of `target/debug` that Homebrew owns it.
 pub fn detect() -> InstallKind {
-    let exe = std::env::current_exe().unwrap_or_default();
+    // Resolved through symlinks, which is the whole question on macOS. Homebrew
+    // puts the command on PATH as a link into the app bundle, so an unresolved
+    // path says /usr/local/bin and answers for the link rather than for the
+    // files an upgrade would actually replace.
+    let exe = std::env::current_exe()
+        .and_then(|p| p.canonicalize().or(Ok(p)))
+        .unwrap_or_default();
     let mut e = Evidence {
         is_appimage: std::env::var_os("APPIMAGE").is_some(),
         ..Default::default()
@@ -447,6 +460,7 @@ mod tests {
         assert!(k.can_self_replace());
     }
 
+    #[cfg(all(unix, not(target_os = "macos")))]
     #[test]
     fn a_system_prefix_is_never_assumed_to_be_ours() {
         // Nothing claims it, but it still took root to put there, so replacing
@@ -456,6 +470,37 @@ mod tests {
             Evidence::default(),
         );
         assert!(!k.can_self_replace(), "{k:?} should not self replace");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_mac_is_never_told_to_run_apt() {
+        // /usr/local is Homebrew's own prefix on every Intel Mac. Reading it as
+        // a system prefix made `gcloud-dot upgrade --check` answer an ordinary
+        // cask install with "sudo apt install", on a machine that has no apt.
+        for p in [
+            "/usr/local/bin/gcloud-dot",
+            "/usr/local/Cellar/gcloud-dot/1.0.0/bin/gcloud-dot",
+        ] {
+            let k = classify(Path::new(p), Evidence::default());
+            assert_ne!(k, InstallKind::DebPackage, "{p} classified as {k:?}");
+            assert_ne!(k, InstallKind::ArchPackage, "{p} classified as {k:?}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn an_intel_cask_is_recognised_as_homebrew() {
+        // The Intel Caskroom lives under /usr/local rather than /opt/homebrew,
+        // and the bundle lands in /Applications either way.
+        let k = classify(
+            Path::new("/Applications/GCloud Dot.app/Contents/MacOS/gcloud-dot"),
+            Evidence {
+                in_homebrew_caskroom: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(k, InstallKind::Homebrew);
     }
 
     #[test]
