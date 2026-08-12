@@ -135,6 +135,25 @@ pub fn classify(exe: &Path, e: Evidence) -> InstallKind {
     InstallKind::SelfManaged
 }
 
+/// Is `exe` inside `dir`, given how Windows spells paths?
+///
+/// Two traps, both of which say "no" to a pair of paths that are the same
+/// place. `Path::canonicalize` returns a verbatim path on Windows, prefixed
+/// `\\?\`, while the installer records an ordinary one in the registry. And
+/// Windows paths are case insensitive, so the drive letter alone can differ.
+///
+/// Called only on Windows, but compiled and tested everywhere, because the
+/// arithmetic is pure and a rule that is only exercised on the machine it
+/// affects is a rule nobody notices breaking.
+pub fn windows_path_is_within(exe: &Path, dir: &Path) -> bool {
+    fn plain(p: &Path) -> String {
+        let s = p.to_string_lossy().to_string();
+        s.strip_prefix(r"\\?\").unwrap_or(&s).to_lowercase()
+    }
+    let (exe, dir) = (plain(exe), plain(dir));
+    !dir.is_empty() && exe.starts_with(&dir)
+}
+
 /// Gather the evidence and classify this running copy.
 ///
 /// Every question below is asked about *this executable*, not about the machine.
@@ -188,7 +207,7 @@ pub fn detect() -> InstallKind {
         e.has_windows_install_record = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
             .open_subkey(r"Software\GCloudDot")
             .and_then(|k| k.get_value::<String, _>("InstallDir"))
-            .map(|dir| exe.starts_with(&dir))
+            .map(|dir| windows_path_is_within(&exe, Path::new(&dir)))
             .unwrap_or(false);
     }
 
@@ -516,6 +535,38 @@ mod tests {
         assert_eq!(k, InstallKind::AppImage);
         assert!(k.can_self_replace());
         assert!(platform_asset_suffix(k).ends_with(".AppImage"));
+    }
+
+    #[test]
+    fn a_verbatim_windows_path_still_matches_the_recorded_install_dir() {
+        // What the registry holds, and what canonicalize hands back. Comparing
+        // them directly said no, so an installed copy on Windows reported
+        // itself as self managed.
+        let dir = Path::new(r"C:\Users\live\AppData\Local\Programs\GCloud Dot");
+        let exe = Path::new(r"\\?\C:\Users\live\AppData\Local\Programs\GCloud Dot\gcloud-dot.exe");
+        assert!(windows_path_is_within(exe, dir));
+
+        // Both plain, which is the shape before canonicalize was introduced.
+        let plain = Path::new(r"C:\Users\live\AppData\Local\Programs\GCloud Dot\gcloud-dot.exe");
+        assert!(windows_path_is_within(plain, dir));
+
+        // Case, because Windows does not care and neither may we.
+        let shouty = Path::new(r"C:\USERS\LIVE\AppData\Local\Programs\GCloud Dot\gcloud-dot.exe");
+        assert!(windows_path_is_within(shouty, dir));
+    }
+
+    #[test]
+    fn something_installed_elsewhere_is_not_inside_the_install_dir() {
+        let dir = Path::new(r"C:\Users\live\AppData\Local\Programs\GCloud Dot");
+        assert!(!windows_path_is_within(
+            Path::new(r"C:\Users\live\Downloads\gcloud-dot.exe"),
+            dir
+        ));
+        // An empty recorded directory must never match everything.
+        assert!(!windows_path_is_within(
+            Path::new(r"C:\anything"),
+            Path::new("")
+        ));
     }
 
     #[test]
