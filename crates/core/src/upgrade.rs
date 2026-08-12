@@ -910,6 +910,37 @@ fn start_manager(kind: InstallKind) -> Result<(), String> {
         .map_err(|e| format!("could not start the package manager: {e}"))
 }
 
+/// Remove an executable that a previous upgrade renamed out of the way.
+///
+/// Windows cannot delete a running image, so the upgrade renames the file it is
+/// running from and lets the installer clear the leftover. The installer only
+/// gets one attempt though, and at that moment the process holding the file is
+/// usually still alive, so the delete is deferred to the next reboot. This runs
+/// at startup, when nothing holds it, and closes that gap for anyone who does
+/// not reboot.
+///
+/// Best effort throughout. A file that cannot be removed will be caught by the
+/// next upgrade, or by the reboot already scheduled for it.
+pub fn clear_replaced_files() {
+    #[cfg(windows)]
+    {
+        let Ok(exe) = std::env::current_exe() else {
+            return;
+        };
+        let Some(dir) = exe.parent() else {
+            return;
+        };
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|e| e == "old") {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+        }
+    }
+}
+
 /// Arrange for a fresh copy to start shortly, then let the caller exit.
 ///
 /// The delay matters. The replacement is already on disk, so the new copy could

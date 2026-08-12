@@ -20,12 +20,30 @@ pub fn check() -> Option<String> {
     upgrade::is_newer(&release.version, gcloud_dot_core::VERSION).then_some(release.version)
 }
 
-/// Spawn the check on a worker thread and hand the result back.
-pub fn check_in_background<F: FnOnce(String) + Send + 'static>(delay: Duration, on_found: F) {
+/// How often to look, after the first look.
+///
+/// This app is meant to sit in the menu bar for weeks at a time. Checking only
+/// at launch means a release that lands on a Tuesday is not mentioned until
+/// something happens to restart the tray, which for a well behaved background
+/// app might be never.
+const RECHECK: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Keep checking on a worker thread, reporting whatever it finds.
+///
+/// `on_found` fires on every check that finds a newer release, including
+/// repeats of one already reported. Deciding what is worth saying out loud
+/// belongs to the caller, which is the only side that knows what the user has
+/// already been told.
+pub fn check_in_background<F: Fn(String) + Send + 'static>(first_delay: Duration, on_found: F) {
     std::thread::spawn(move || {
-        std::thread::sleep(delay);
-        if let Some(version) = check() {
-            on_found(version);
+        // The first delay is shorter, and exists so a launch at login does not
+        // race the network coming up.
+        std::thread::sleep(first_delay);
+        loop {
+            if let Some(version) = check() {
+                on_found(version);
+            }
+            std::thread::sleep(RECHECK);
         }
     });
 }

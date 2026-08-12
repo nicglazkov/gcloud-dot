@@ -163,6 +163,11 @@ When a new version is released you get a notification. Open the window and the
 banner across the top offers one button that downloads it, checks it, installs
 it, and restarts the app. Nothing else is required, and no terminal is involved.
 
+The check runs shortly after launch and once a day after that, because this app
+is built to sit in the menu bar for weeks and a release that lands on a Tuesday
+should not wait for a restart to be mentioned. Each version is announced once,
+however many times it is seen.
+
 `gcloud-dot upgrade` does the same thing from a shell.
 
 There is one case where the app deliberately refuses to touch its own files. If

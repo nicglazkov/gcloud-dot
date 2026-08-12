@@ -103,6 +103,8 @@ fn main() {
 
     // Do this before anything can raise a notification.
     notify::register_windows_identity();
+    // Anything a previous upgrade could not delete because it was still running.
+    gcloud_dot_core::upgrade::clear_replaced_files();
 
     // Before touching the login item, stand down whatever came before. Both
     // predecessors share this app's identity, so leaving one running puts two
@@ -248,17 +250,26 @@ fn main() {
             }
 
             Event::UserEvent(UserEvent::UpdateFound(version)) => {
-                // Only ever announced once per run. The check happens at launch
-                // and this app is meant to stay running for weeks, so repeating
-                // it on a timer would be a notification a day about the same
-                // release until the user gave in.
-                notify::show(
-                    &format!("GCloud Dot {version} is available"),
-                    "Open the window and choose Update now to install it.",
-                    gcloud_dot_core::Urgency::Info,
-                );
+                // The check repeats daily, so this arrives again every day that
+                // an update goes uninstalled. Say it once per version: a
+                // notification a day about the same release is how a user
+                // learns to dismiss this app's notifications without reading
+                // them, and the ones about expiring credentials are the point.
+                let already_said = app.update_available.as_deref() == Some(version.as_str());
+                if !already_said {
+                    notify::show(
+                        &format!("GCloud Dot {version} is available"),
+                        "Open the window and choose Update now to install it.",
+                        gcloud_dot_core::Urgency::Info,
+                    );
+                }
                 app.update_available = Some(version.clone());
-                app.update_ui = update::UpdateUi::Available(version);
+                // The banner is set regardless, because it is not an
+                // interruption. It is only a statement of what is true, and it
+                // has to survive being dismissed by an upgrade that failed.
+                if !app.update_ui.is_busy() {
+                    app.update_ui = update::UpdateUi::Available(version);
+                }
                 app.rebuild_menu();
                 app.refresh_panel();
             }
