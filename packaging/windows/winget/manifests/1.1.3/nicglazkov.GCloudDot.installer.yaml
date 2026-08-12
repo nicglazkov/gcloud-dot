@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 PackageIdentifier: nicglazkov.GCloudDot
-PackageVersion: 1.1.1
+PackageVersion: 1.1.3
 InstallerType: nullsoft
 # The installer writes only inside the user's profile and never elevates.
 Scope: user
@@ -11,7 +11,7 @@ UpgradeBehavior: install
 ReleaseDate: 2026-08-12
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/nicglazkov/gcloud-dot/releases/download/v1.1.1/GCloud-Dot-1.1.1-setup.exe
-    InstallerSha256: BE33C428CC9FEA7D35BA1604A5E19D2B75060210A2D7E16F2407E09A4E9C92B6
+    InstallerUrl: https://github.com/nicglazkov/gcloud-dot/releases/download/v1.1.3/GCloud-Dot-1.1.3-setup.exe
+    InstallerSha256: 0BFE427BD8A1E8CC260F06B04A8C700274B62772D554021DFBDE162AFA617B28
 ManifestType: installer
 ManifestVersion: 1.6.0
