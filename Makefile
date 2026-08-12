@@ -115,8 +115,13 @@ notarize: sign
 	 echo "preflight ok"
 	rm -f build/notarize.zip
 	ditto -c -k --keepParent "$(APP)" build/notarize.zip
+	@# --timeout, because the default client deadline is shorter than Apple's
+	@# queue on a bad day. Twice this has returned HTTPClientError.deadlineExceeded
+	@# on a submission that was still In Progress and went on to be Accepted,
+	@# which fails the build for no reason and leaves a half done release.
 	xcrun notarytool submit build/notarize.zip \
-	  --key "$(ASC_KEY_PATH)" --key-id "$(ASC_KEY_ID)" --issuer "$(ASC_ISSUER_ID)" --wait
+	  --key "$(ASC_KEY_PATH)" --key-id "$(ASC_KEY_ID)" --issuer "$(ASC_ISSUER_ID)" \
+	  --wait --timeout 45m
 	xcrun stapler staple "$(APP)"
 	rm -f build/notarize.zip
 	$(MAKE) dmg
@@ -126,7 +131,8 @@ notarize: sign
 	@# while nothing attests to who produced the container holding them.
 	codesign --force --timestamp -s "$(SIGN_IDENTITY)" "$(DMG)"
 	xcrun notarytool submit "$(DMG)" \
-	  --key "$(ASC_KEY_PATH)" --key-id "$(ASC_KEY_ID)" --issuer "$(ASC_ISSUER_ID)" --wait
+	  --key "$(ASC_KEY_PATH)" --key-id "$(ASC_KEY_ID)" --issuer "$(ASC_ISSUER_ID)" \
+	  --wait --timeout 45m
 	xcrun stapler staple "$(DMG)"
 
 # The installer window: a painted background, the app on the left, an alias to

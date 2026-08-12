@@ -372,20 +372,7 @@ impl App {
 
         // macOS has a text slot beside the icon; the other two do not, so the
         // same string goes into the bitmap instead.
-        //
-        // Only a real countdown earns the space. "!" beside a red dot and "?"
-        // beside a grey one repeat what the colour already said, and every
-        // character here is taken from the menu bar's fixed width, on a
-        // notched Mac, permanently.
-        let show_text = cfg!(target_os = "macos")
-            && self.engine.state.settings.show_countdown_text
-            && status.auth == gcloud_dot_core::AuthState::Valid
-            && status.remaining(now).is_some();
-        let title = if show_text {
-            label.clone()
-        } else {
-            String::new()
-        };
+        let title = menu_bar_title(status, &self.engine.state.settings, now);
         let key = RenderKey {
             level,
             label: label.clone(),
@@ -403,7 +390,12 @@ impl App {
             {
                 let _ = tray.set_icon(Some(image));
             }
-            tray.set_title(if title.is_empty() { None } else { Some(&title) });
+            // Always Some, never None. tray-icon's macOS set_title ignores a
+            // None entirely rather than clearing, so passing it leaves the last
+            // title on the button forever. That is how a red dot ended up next
+            // to a stale "0m": the countdown was written while the session was
+            // still valid, and nothing ever took it off again.
+            tray.set_title(Some(&title));
             let _ = tray.set_tooltip(Some(&key.tooltip));
         }
 
@@ -683,6 +675,30 @@ fn linux_tray_hint() -> String {
     }
 }
 
+/// The text to show beside the menu bar icon.
+///
+/// Empty means "nothing beside the icon", and the caller must still send it, so
+/// that a title left over from a previous state is cleared.
+///
+/// Only a real countdown earns the space. "!" beside a red dot and "?" beside a
+/// grey one repeat what the colour already said, and every character is taken
+/// from the menu bar's fixed width, permanently, on a notched Mac.
+fn menu_bar_title(
+    status: &gcloud_dot_core::Status,
+    settings: &gcloud_dot_core::Settings,
+    now: DateTime<Local>,
+) -> String {
+    let wanted = cfg!(target_os = "macos")
+        && settings.show_countdown_text
+        && status.auth == gcloud_dot_core::AuthState::Valid
+        && status.remaining(now).is_some();
+    if wanted {
+        status.icon_label(now)
+    } else {
+        String::new()
+    }
+}
+
 /// Show or hide the app in the app switcher and the Dock.
 ///
 /// macOS only: an accessory app has no Dock tile and no Cmd-Tab entry, which is
@@ -700,5 +716,67 @@ fn set_app_switcher_visible(
         } else {
             ActivationPolicy::Accessory
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gcloud_dot_core::estimate::{Estimate, EstimateSource};
+    use gcloud_dot_core::{AuthState, Settings, Status};
+
+    fn valid_with(hours_ago: f64) -> Status {
+        Status {
+            gcloud_found: true,
+            auth: AuthState::Valid,
+            session_start: Some(
+                Local::now() - chrono::Duration::seconds((hours_ago * 3600.0) as i64),
+            ),
+            estimate: Estimate {
+                hours: 16.0,
+                source: EstimateSource::Observed { count: 3 },
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_expired_session_shows_no_countdown() {
+        // The bug this guards: the session ran past its estimate so the title
+        // read "0m", then it expired and the title was never cleared. The
+        // result was a red dot beside a stale "0m" for as long as the app ran.
+        let mut s = valid_with(20.0);
+        assert_eq!(menu_bar_title(&s, &Settings::default(), Local::now()), "0m");
+
+        s.auth = AuthState::Expired;
+        assert_eq!(
+            menu_bar_title(&s, &Settings::default(), Local::now()),
+            "",
+            "an expired session must clear the countdown, not keep the last one"
+        );
+    }
+
+    #[test]
+    fn an_unknown_state_shows_no_countdown() {
+        let mut s = valid_with(1.0);
+        s.auth = AuthState::Unknown("network".into());
+        assert_eq!(menu_bar_title(&s, &Settings::default(), Local::now()), "");
+    }
+
+    #[test]
+    fn a_running_countdown_is_shown() {
+        let s = valid_with(2.0);
+        let t = menu_bar_title(&s, &Settings::default(), Local::now());
+        assert!(t.ends_with('h'), "expected hours remaining, got {t:?}");
+    }
+
+    #[test]
+    fn turning_the_countdown_off_clears_it() {
+        let s = valid_with(2.0);
+        let settings = Settings {
+            show_countdown_text: false,
+            ..Default::default()
+        };
+        assert_eq!(menu_bar_title(&s, &settings, Local::now()), "");
     }
 }
