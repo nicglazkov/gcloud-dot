@@ -24,12 +24,13 @@ SIGN_IDENTITY ?= -
 TEAM_ID       ?=
 
 .PHONY: all build test lint icons app sign notarize dmg dmg-background verify clean \
-        linux-deb linux-appimage windows-zip dist-macos help
+        linux-deb linux-appimage windows-zip dist-macos publish-macos help
 
 help:
 	@echo "make test        run the whole test suite"
 	@echo "make app         build a universal .app bundle"
 	@echo "make dist-macos  build, sign, notarize, staple, and package a DMG"
+	@echo "make publish-macos  the above, then attach it and its checksum to the release"
 	@echo "make verify      prove Gatekeeper would accept the artifacts, offline"
 
 all: build
@@ -170,6 +171,30 @@ verify:
 	@test -f "$(DMG)" && spctl -a -vvv -t open --context context:primary-signature "$(DMG)" || true
 	@echo "--- architectures ---"
 	@lipo -archs "$(APP)/Contents/MacOS/GCloudDot" || true
+
+# Attach the notarized disk image to a release that CI has already published.
+#
+# CI cannot do this: notarization needs an Apple key that is not in the
+# repository's secrets, so the DMG is built here and uploaded afterwards.
+#
+# The checksums matter as much as the image. CI writes SHA256SUMS.txt before
+# this file exists, and the in-app updater refuses any download whose hash is
+# not published there, so a DMG uploaded without amending that file produces an
+# app that declines to install its own update. That is the step this target
+# exists to stop anyone from forgetting, this author included.
+publish-macos: dist-macos
+	@test -f "$(DMG)" || { echo "no $(DMG); run make dist-macos first"; exit 1; }
+	@echo "--- refusing to publish anything Gatekeeper would not accept ---"
+	xcrun stapler validate "$(DMG)"
+	gh release upload v$(VERSION) "$(DMG)" --clobber
+	@echo "--- amending the published checksums ---"
+	@rm -rf build/sums && mkdir -p build/sums
+	gh release download v$(VERSION) --pattern SHA256SUMS.txt --dir build/sums
+	@grep -q "$(DMG)" build/sums/SHA256SUMS.txt \
+	  || shasum -a 256 "$(DMG)" >> build/sums/SHA256SUMS.txt
+	gh release upload v$(VERSION) build/sums/SHA256SUMS.txt --clobber
+	@echo "--- what a client will now see ---"
+	@grep "$(DMG)" build/sums/SHA256SUMS.txt
 
 clean:
 	cargo clean
