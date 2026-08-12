@@ -19,11 +19,34 @@ const CANDIDATES: &[&str] = &[
     "/usr/bin/gcloud",
 ];
 
+/// Locations under the home directory worth checking.
+///
+/// Deliberately none of Downloads, Desktop, or Documents. macOS gates those
+/// behind a consent prompt, so merely asking whether a file exists inside one
+/// makes the system ask the user for access. This app is otherwise free of
+/// permission prompts, and "GCloud Dot wants to access your Downloads folder"
+/// is an alarming thing for a credential monitor to say.
+///
+/// Downloads was on this list, because it is where the SDK tarball lands. It is
+/// where the tarball is extracted before being moved somewhere permanent, not
+/// where anybody runs it from, so the prompt bought nothing.
 #[cfg(not(windows))]
 const HOME_RELATIVE: &[&str] = &[
     "google-cloud-sdk/bin/gcloud",
-    "Downloads/google-cloud-sdk/bin/gcloud",
     ".local/share/google-cloud-sdk/bin/gcloud",
+];
+
+/// Directories macOS will not let a program look inside without asking.
+///
+/// Only the test reads this. It exists so the rule is written down next to the
+/// list it constrains, rather than living in a reviewer's memory.
+#[cfg(test)]
+#[cfg(not(windows))]
+const CONSENT_GATED: &[&str] = &[
+    "Downloads",
+    "Desktop",
+    "Documents",
+    "Library/Mobile Documents",
 ];
 
 /// Locate the gcloud executable, or `None` if it is not installed.
@@ -149,6 +172,22 @@ mod tests {
         let p = Path::new(r"C:\Program Files (x86)\Google\Cloud SDK\bin\gcloud.cmd");
         assert!(login_command(p).starts_with('"'));
         assert!(login_command(Path::new("/usr/local/bin/gcloud")).starts_with('/'));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn nothing_searched_needs_the_user_s_consent() {
+        // Probing a consent gated directory raises a system prompt just by
+        // asking whether a file is there. An app that claims to need no
+        // permissions must not go looking in one.
+        for candidate in HOME_RELATIVE {
+            for gated in CONSENT_GATED {
+                assert!(
+                    !candidate.starts_with(gated),
+                    "{candidate} sits inside {gated}, which macOS will prompt for"
+                );
+            }
+        }
     }
 
     #[test]
