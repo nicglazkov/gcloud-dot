@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 PackageIdentifier: nicglazkov.GCloudDot
-PackageVersion: 1.1.6
+PackageVersion: 1.1.7
 PackageLocale: en-US
 Publisher: Nicholas Glazkov
 PublisherUrl: https://github.com/nicglazkov
@@ -29,6 +29,6 @@ Tags:
   - authentication
   - developer-tools
   - tray
-ReleaseNotesUrl: https://github.com/nicglazkov/gcloud-dot/releases/tag/v1.1.6
+ReleaseNotesUrl: https://github.com/nicglazkov/gcloud-dot/releases/tag/v1.1.7
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
