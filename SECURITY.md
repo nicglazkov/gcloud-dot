@@ -73,6 +73,18 @@ reimplement. There is no HTTP client and no TLS stack in the tree: the update
 check shells out to `curl`, which every supported system ships, rather than
 linking a dependency tree larger than the rest of the app for one request a day.
 
+## Known advisories
+
+**`glib` 0.18.5, RUSTSEC unsoundness in `VariantStrIter`** (medium). Reachable
+only in Linux builds, where `glib` arrives through `gtk` 0.18, which is what
+`tao` pins. The fix is in `glib` 0.20, which needs `gtk` 0.20, which needs a
+`tao` release that has not happened yet, so this cannot be resolved from here.
+
+The affected type is a GTK binding this project never names, directly or
+indirectly, and the flaw is unsoundness in an iterator rather than anything
+reachable from input. It is listed here rather than dismissed quietly, and it
+will be picked up automatically when `tao` moves.
+
 ## Supported versions
 
 The latest release. Fixes are shipped forward, not backported.
