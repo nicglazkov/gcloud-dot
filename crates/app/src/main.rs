@@ -259,7 +259,9 @@ fn main() {
                 if !already_said {
                     notify::show(
                         &format!("GCloud Dot {version} is available"),
-                        "Open the window and choose Update now to install it.",
+                        gcloud_dot_core::upgrade::notification_body(
+                            gcloud_dot_core::upgrade::detect(),
+                        ),
                         gcloud_dot_core::Urgency::Info,
                     );
                 }

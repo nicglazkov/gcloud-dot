@@ -536,6 +536,18 @@ mod tests {
     }
 
     #[test]
+    fn the_notification_never_promises_a_button_that_is_not_there() {
+        // An apt install has no Update now button; the window gives it a
+        // command. Seen on Ubuntu, where the notification said otherwise.
+        assert!(!notification_body(InstallKind::DebPackage).contains("Update now"));
+        assert!(notification_body(InstallKind::DebPackage).contains("command"));
+        // Where the button does exist, say so.
+        for k in [InstallKind::SelfManaged, InstallKind::Homebrew] {
+            assert!(notification_body(k).contains("Update now"), "{k:?}");
+        }
+    }
+
+    #[test]
     fn the_command_shown_to_an_apt_user_can_actually_be_run() {
         // The generic form carries <version> and <arch> placeholders, which is
         // not something anybody can paste into a shell.
@@ -919,6 +931,23 @@ pub enum Outcome {
         command: String,
         why: String,
     },
+}
+
+/// What to tell someone a new version exists, in words that match what they
+/// will actually find when they go and look.
+///
+/// "Open the window and choose Update now" is wrong for an install a package
+/// manager owns, because there is no such button there: the window shows the
+/// command to run instead. A notification that describes a button which is not
+/// on the screen is worse than one that says nothing.
+pub fn notification_body(kind: InstallKind) -> &'static str {
+    if kind.can_self_replace() {
+        "Open the window and choose Update now to install it."
+    } else if kind.can_run_manager() {
+        "Open the window and choose Update now, and Homebrew will install it."
+    } else {
+        "Open the window for the command that installs it."
+    }
 }
 
 /// The command to run, with the version and architecture filled in.
