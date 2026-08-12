@@ -688,15 +688,24 @@ fn menu_bar_title(
     settings: &gcloud_dot_core::Settings,
     now: DateTime<Local>,
 ) -> String {
-    let wanted = cfg!(target_os = "macos")
-        && settings.show_countdown_text
-        && status.auth == gcloud_dot_core::AuthState::Valid
-        && status.remaining(now).is_some();
-    if wanted {
+    // The platform check is separate from the policy so the policy can be
+    // tested on every platform rather than only where the slot exists.
+    if cfg!(target_os = "macos") && wants_countdown_text(status, settings, now) {
         status.icon_label(now)
     } else {
         String::new()
     }
+}
+
+/// Whether a countdown is worth showing beside the icon at all.
+fn wants_countdown_text(
+    status: &gcloud_dot_core::Status,
+    settings: &gcloud_dot_core::Settings,
+    now: DateTime<Local>,
+) -> bool {
+    settings.show_countdown_text
+        && status.auth == gcloud_dot_core::AuthState::Valid
+        && status.remaining(now).is_some()
 }
 
 /// Show or hide the app in the app switcher and the Dock.
@@ -741,42 +750,74 @@ mod tests {
     }
 
     #[test]
-    fn an_expired_session_shows_no_countdown() {
+    fn an_expired_session_wants_no_countdown() {
         // The bug this guards: the session ran past its estimate so the title
-        // read "0m", then it expired and the title was never cleared. The
-        // result was a red dot beside a stale "0m" for as long as the app ran.
+        // read "0m", then it expired and the title was never cleared, leaving a
+        // red dot beside a stale countdown for as long as the app ran.
         let mut s = valid_with(20.0);
-        assert_eq!(menu_bar_title(&s, &Settings::default(), Local::now()), "0m");
+        let settings = Settings::default();
+        assert!(wants_countdown_text(&s, &settings, Local::now()));
+        assert_eq!(s.icon_label(Local::now()), "0m");
 
         s.auth = AuthState::Expired;
-        assert_eq!(
-            menu_bar_title(&s, &Settings::default(), Local::now()),
-            "",
+        assert!(
+            !wants_countdown_text(&s, &settings, Local::now()),
             "an expired session must clear the countdown, not keep the last one"
         );
     }
 
     #[test]
-    fn an_unknown_state_shows_no_countdown() {
+    fn an_unknown_state_wants_no_countdown() {
         let mut s = valid_with(1.0);
         s.auth = AuthState::Unknown("network".into());
-        assert_eq!(menu_bar_title(&s, &Settings::default(), Local::now()), "");
+        assert!(!wants_countdown_text(
+            &s,
+            &Settings::default(),
+            Local::now()
+        ));
     }
 
     #[test]
-    fn a_running_countdown_is_shown() {
-        let s = valid_with(2.0);
-        let t = menu_bar_title(&s, &Settings::default(), Local::now());
-        assert!(t.ends_with('h'), "expected hours remaining, got {t:?}");
+    fn a_running_countdown_is_wanted() {
+        assert!(wants_countdown_text(
+            &valid_with(2.0),
+            &Settings::default(),
+            Local::now()
+        ));
     }
 
     #[test]
-    fn turning_the_countdown_off_clears_it() {
-        let s = valid_with(2.0);
+    fn turning_the_countdown_off_wants_nothing() {
         let settings = Settings {
             show_countdown_text: false,
             ..Default::default()
         };
-        assert_eq!(menu_bar_title(&s, &settings, Local::now()), "");
+        assert!(!wants_countdown_text(
+            &valid_with(2.0),
+            &settings,
+            Local::now()
+        ));
+    }
+
+    #[test]
+    fn only_macos_has_a_slot_for_the_text() {
+        // Windows and Linux draw the countdown into the icon bitmap instead, so
+        // the title is always empty there and there is nothing to go stale.
+        let title = menu_bar_title(&valid_with(2.0), &Settings::default(), Local::now());
+        if cfg!(target_os = "macos") {
+            assert!(
+                title.ends_with('h'),
+                "expected hours remaining, got {title:?}"
+            );
+        } else {
+            assert_eq!(title, "");
+        }
+    }
+
+    #[test]
+    fn the_title_is_empty_once_the_session_is_gone() {
+        let mut s = valid_with(20.0);
+        s.auth = AuthState::Expired;
+        assert_eq!(menu_bar_title(&s, &Settings::default(), Local::now()), "");
     }
 }
