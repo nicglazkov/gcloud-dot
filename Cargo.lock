@@ -1016,6 +1016,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "winreg",
 ]
 
 [[package]]

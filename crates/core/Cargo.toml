@@ -15,5 +15,10 @@ serde_json.workspace = true
 chrono.workspace = true
 dirs.workspace = true
 
+# Reading where the Windows installer put its files, which is how the updater
+# knows this copy is one it may replace.
+[target."cfg(windows)".dependencies]
+winreg = "0.56.0"
+
 [dev-dependencies]
 tempfile = "3"
