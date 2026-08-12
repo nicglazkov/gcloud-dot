@@ -9,6 +9,27 @@
 //! cargo run -p gcloud-dot-app --example render_panel -- /tmp/panel.html
 //! ```
 
+/// Which update banner to draw, chosen by `GCLOUD_DOT_PANEL_UPDATE`.
+///
+/// The banner has six states and only one of them shows up in ordinary use, so
+/// without a way to ask for the others they would be reviewed by reading the
+/// template rather than by looking at them.
+fn update_state() -> panel::UpdateUi {
+    match std::env::var("GCLOUD_DOT_PANEL_UPDATE").unwrap_or_default().as_str() {
+        "available" => panel::UpdateUi::Available("1.1.0".into()),
+        "working" => panel::UpdateUi::Working("Downloading".into()),
+        "restarting" => panel::UpdateUi::Restarting("1.1.0".into()),
+        "handed" => panel::UpdateUi::Handed("1.1.0".into()),
+        "manual" => panel::UpdateUi::Manual {
+            version: "1.1.0".into(),
+            command: "sudo apt install ./gcloud-dot_1.1.0_amd64.deb".into(),
+            why: "This copy was installed by apt, which owns the files and needs root to replace them.".into(),
+        },
+        "failed" => panel::UpdateUi::Failed("The download does not match its published checksum.".into()),
+        _ => panel::UpdateUi::Nothing,
+    }
+}
+
 #[path = "../src/panel.rs"]
 #[allow(dead_code)]
 mod panel;
@@ -71,7 +92,7 @@ fn main() {
         (Theme::Light, "-light"),
         (Theme::Dark, "-dark"),
     ] {
-        let html = panel::document(&panel::view(&status, &state), theme);
+        let html = panel::document(&panel::view(&status, &state, &update_state()), theme);
         let path = out.replace(".html", &format!("{suffix}.html"));
         std::fs::write(&path, html).expect("could not write the file");
         println!("wrote {path}");

@@ -143,6 +143,8 @@ $ gcloud-dot
 | `gcloud-dot login` | Run `gcloud auth login` |
 | `gcloud-dot paths` | Where everything lives on this machine |
 | `gcloud-dot quit` | Stop the running menu bar or tray app |
+| `gcloud-dot upgrade` | Install the newest version |
+| `gcloud-dot upgrade --check` | Say what is available and change nothing |
 
 `quit` matters more than it looks: when the menu bar is full, macOS stops
 drawing the icon, and the menu holding Quit goes with it. The panel has a quit
@@ -152,6 +154,37 @@ Exit codes are part of the interface (`0` signed in, `1` signed out, `2`
 unknown), so a shell prompt or a CI step can branch without parsing anything.
 The JSON includes `estimate_is_measured`, so a consumer can tell a measurement
 from a guess.
+
+<br>
+
+## Updating
+
+When a new version is released you get a notification. Open the window and the
+banner across the top offers one button that downloads it, checks it, installs
+it, and restarts the app. Nothing else is required, and no terminal is involved.
+
+`gcloud-dot upgrade` does the same thing from a shell.
+
+There is one case where the app deliberately refuses to touch its own files. If
+a package manager installed GCloud Dot, that manager owns those files and keeps
+a record describing them; overwriting them behind its back leaves the record
+describing a version that is no longer on disk, ready to reinstate the old one
+at the next upgrade. So the app works out how this copy arrived and acts
+accordingly:
+
+| How you installed it | What the button does |
+|---|---|
+| Disk image, shell installer, AppImage | Replaces itself and restarts |
+| Homebrew, winget | Runs that manager, which needs no password |
+| apt, pacman | Changes nothing, and shows you the command |
+
+Every download is checked against the release's published `SHA256SUMS.txt`. On
+macOS that is not treated as sufficient on its own, because a checksum published
+beside the file it describes proves only that the bytes arrived intact: the new
+bundle's Developer ID team is verified and Gatekeeper is asked for its own
+verdict before it is allowed to replace the running app. On Windows the update
+runs the project's signed installer rather than swapping files by hand, so the
+uninstall entry and the Start menu shortcut stay truthful.
 
 <br>
 

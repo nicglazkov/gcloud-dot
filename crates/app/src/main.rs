@@ -46,6 +46,12 @@ enum UserEvent {
     Menu(String),
     Panel(String),
     UpdateFound(String),
+    /// One step of an upgrade in progress.
+    UpdateProgress(String),
+    /// An upgrade attempt has finished, one way or the other.
+    UpdateDone(Box<Result<gcloud_dot_core::upgrade::Outcome, String>>),
+    /// The replacement is on disk. Stand down so the new copy can take over.
+    UpdateRestart,
     LoginFailed(String),
 }
 
@@ -78,6 +84,7 @@ struct App {
     last_render: Option<RenderKey>,
     work_in_flight: bool,
     update_available: Option<String>,
+    update_ui: update::UpdateUi,
     state_path: PathBuf,
     proxy: tao::event_loop::EventLoopProxy<UserEvent>,
 }
@@ -167,6 +174,7 @@ fn main() {
         last_render: None,
         work_in_flight: false,
         update_available: None,
+        update_ui: update::UpdateUi::default(),
         state_path: paths::state_path(),
         proxy: proxy.clone(),
     };
@@ -240,8 +248,54 @@ fn main() {
             }
 
             Event::UserEvent(UserEvent::UpdateFound(version)) => {
-                app.update_available = Some(version);
+                // Only ever announced once per run. The check happens at launch
+                // and this app is meant to stay running for weeks, so repeating
+                // it on a timer would be a notification a day about the same
+                // release until the user gave in.
+                notify::show(
+                    &format!("GCloud Dot {version} is available"),
+                    "Open the window and choose Update now to install it.",
+                    gcloud_dot_core::Urgency::Info,
+                );
+                app.update_available = Some(version.clone());
+                app.update_ui = update::UpdateUi::Available(version);
                 app.rebuild_menu();
+                app.refresh_panel();
+            }
+
+            Event::UserEvent(UserEvent::UpdateProgress(step)) => {
+                app.update_ui = update::UpdateUi::Working(step);
+                app.refresh_panel();
+            }
+
+            Event::UserEvent(UserEvent::UpdateDone(result)) => {
+                app.update_ui = update::UpdateUi::from_outcome(*result);
+                if matches!(app.update_ui, update::UpdateUi::Restarting(_)) {
+                    app.update_available = None;
+                    // Long enough for the banner to be read, short enough that
+                    // nobody wonders whether it worked.
+                    let proxy = proxy.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(Duration::from_secs(2));
+                        let _ = proxy.send_event(UserEvent::UpdateRestart);
+                    });
+                }
+                app.rebuild_menu();
+                app.refresh_panel();
+            }
+
+            Event::UserEvent(UserEvent::UpdateRestart) => {
+                if let Err(e) = gcloud_dot_core::upgrade::schedule_relaunch() {
+                    // Nothing will bring it back, so do not disappear silently.
+                    eprintln!("gcloud-dot: could not arrange the restart: {e}");
+                    app.update_ui = update::UpdateUi::Failed(format!(
+                        "The new version is installed, but GCloud Dot could not restart itself: {e}"
+                    ));
+                    app.refresh_panel();
+                    return;
+                }
+                app.save();
+                *control_flow = ControlFlow::Exit;
             }
 
             Event::WindowEvent {
@@ -449,8 +503,15 @@ impl App {
             menu::id::WEBSITE => {
                 let _ = actions::open_url("https://nicglazkov.github.io/gcloud-dot/");
             }
+            // Opening the window as well as starting the work: the upgrade
+            // has steps and can fail, and a menu item that closes itself and
+            // then does something for thirty seconds in silence is how a user
+            // ends up clicking it four times.
             menu::id::UPDATE => {
-                let _ = actions::open_url(update::RELEASES_PAGE);
+                if self.panel.is_none() {
+                    self.open_panel(target);
+                }
+                self.start_upgrade(proxy);
             }
             menu::id::LAUNCH_AT_LOGIN => {
                 let now_on = !self.engine.state.settings.launch_at_login;
@@ -569,7 +630,7 @@ impl App {
     }
 
     fn open_panel(&mut self, target: &tao::event_loop::EventLoopWindowTarget<UserEvent>) {
-        let view = panel::view(&self.engine.status, &self.engine.state);
+        let view = panel::view(&self.engine.status, &self.engine.state, &self.update_ui);
         let html = panel::document(&view, self.engine.state.settings.theme);
 
         let window = match WindowBuilder::new()
@@ -623,11 +684,35 @@ impl App {
         let Some((_, webview)) = &self.panel else {
             return;
         };
-        let view = panel::view(&self.engine.status, &self.engine.state);
+        let view = panel::view(&self.engine.status, &self.engine.state, &self.update_ui);
         // Swapping the content rather than reloading avoids a visible flash and
         // keeps the window's scroll position meaningful.
         let script = panel::refresh_script(&view, self.engine.state.settings.theme);
         let _ = webview.evaluate_script(&script);
+    }
+
+    /// Begin an upgrade, unless one is already running.
+    ///
+    /// The guard is not paranoia: the banner's button and the menu item both
+    /// arrive here, and two upgrades writing the same files at once would race
+    /// over the staging directory.
+    fn start_upgrade(&mut self, proxy: &tao::event_loop::EventLoopProxy<UserEvent>) {
+        if self.update_ui.is_busy() {
+            return;
+        }
+        self.update_ui = update::UpdateUi::Working("Checking for a new version".into());
+        self.refresh_panel();
+
+        let progress_proxy = proxy.clone();
+        let done_proxy = proxy.clone();
+        update::run_in_background(
+            move |step| {
+                let _ = progress_proxy.send_event(UserEvent::UpdateProgress(step));
+            },
+            move |result| {
+                let _ = done_proxy.send_event(UserEvent::UpdateDone(Box::new(result)));
+            },
+        );
     }
 
     fn on_panel_message(
@@ -651,6 +736,12 @@ impl App {
             }
             Some("website") => {
                 let _ = actions::open_url("https://nicglazkov.github.io/gcloud-dot/");
+            }
+            Some("update") => self.start_upgrade(proxy),
+            // What the release actually contains, for deciding whether to
+            // install it now or later.
+            Some("notes") => {
+                let _ = actions::open_url(update::RELEASES_PAGE);
             }
             // Routed through the menu handler so quitting behaves identically
             // however it was asked for.

@@ -16,6 +16,33 @@ use gcloud_dot_core::{
     State,
 };
 
+/// What the window is currently saying about updates.
+///
+/// Kept in the app rather than recomputed, because it is a record of what the
+/// user has already been told and what they asked for.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum UpdateUi {
+    /// Nothing to say.
+    #[default]
+    Nothing,
+    /// A newer version exists and has not been started.
+    Available(String),
+    /// Working, with the step now in progress.
+    Working(String),
+    /// Replaced. The app restarts itself in a moment.
+    Restarting(String),
+    /// A package manager was started and will finish on its own.
+    Handed(String),
+    /// Cannot be done from here. Carries the command to run.
+    Manual {
+        version: String,
+        command: String,
+        why: String,
+    },
+    /// It did not work, and this is why.
+    Failed(String),
+}
+
 /// Everything the page needs, resolved before rendering so the template has no
 /// logic in it beyond iteration.
 pub struct PanelView {
@@ -29,6 +56,7 @@ pub struct PanelView {
     pub samples: Vec<f64>,
     pub logins: Vec<(String, String, String)>,
     pub version: String,
+    pub update: UpdateUi,
 }
 
 /// How much the session-length figure is actually worth, which decides what the
@@ -44,7 +72,7 @@ pub enum Evidence {
     Inferred,
 }
 
-pub fn view(status: &Status, state: &State) -> PanelView {
+pub fn view(status: &Status, state: &State, update: &UpdateUi) -> PanelView {
     let now = chrono::Local::now();
     let level = status.level(now);
 
@@ -146,6 +174,7 @@ pub fn view(status: &Status, state: &State) -> PanelView {
         samples: state.samples.clone(),
         logins,
         version: gcloud_dot_core::VERSION.to_string(),
+        update: update.clone(),
     }
 }
 
@@ -273,6 +302,40 @@ button.quit{flex:0 0 auto; padding:9px 14px; color:var(--muted)}
 button.primary:hover{filter:brightness(1.08)}
 footer{text-align:center; color:var(--faint); font-size:11px; margin-top:9px}
 footer a{color:var(--faint)}
+.banner a{color:var(--muted)}
+
+/* The update banner. Brand green rather than the status colour, for the same
+   reason the primary button is: this is an offer, not a warning about the
+   thing the window exists to report. */
+.banner{
+  display:flex; align-items:center; gap:12px; margin-bottom:12px; padding:13px 15px;
+  border-radius:16px; box-shadow:var(--shadow);
+  border:1px solid color-mix(in srgb, var(--brand) 34%, transparent);
+  background:color-mix(in srgb, var(--brand) 11%, var(--glass));
+  backdrop-filter:blur(20px) saturate(170%); -webkit-backdrop-filter:blur(20px) saturate(170%);
+}
+.banner .bt{flex:1; min-width:0}
+.banner b{display:block; font-size:13.5px; font-weight:640; letter-spacing:-.01em}
+.banner span{display:block; color:var(--muted); font-size:11.5px; margin-top:2px; line-height:1.45}
+.banner button{flex:0 0 auto; padding:8px 14px}
+.banner code{
+  display:block; margin-top:7px; padding:7px 9px; border-radius:8px;
+  background:var(--soft); border:1px solid var(--soft-line);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+  overflow-x:auto; white-space:pre; color:var(--text);
+}
+.banner.bad{border-color:color-mix(in srgb, #c8442e 40%, transparent);
+            background:color-mix(in srgb, #c8442e 10%, var(--glass))}
+/* Motion is the only honest way to say "still working" for a download whose
+   length is not known in advance, so the spinner turns rather than a bar
+   pretending to know how far along it is. */
+.spin{
+  width:15px; height:15px; flex:0 0 auto; border-radius:50%;
+  border:2px solid color-mix(in srgb, var(--brand) 28%, transparent);
+  border-top-color:var(--brand); animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 "#;
 
 /// The scrolling content and the pinned action bar.
@@ -339,6 +402,7 @@ pub fn body(v: &PanelView) -> String {
     format!(
         // r##: the template contains href="#", and `"#` would close an r#"..."# literal.
         r##"<div class="scroll">
+  {banner}
   <div class="card">
     <div class="head">
       <div class="dot"></div>
@@ -371,6 +435,7 @@ pub fn body(v: &PanelView) -> String {
   </div>
   <footer>GCloud Dot {version}, <a href="#" onclick="send('website');return false">website</a></footer>
 </div>"##,
+        banner = update_banner(&v.update),
         headline = esc(&v.headline),
         sub = esc(&v.sub),
         rows = rows,
@@ -381,6 +446,64 @@ pub fn body(v: &PanelView) -> String {
         logins = logins,
         version = esc(&v.version),
     )
+}
+
+/// The update banner, or nothing at all.
+///
+/// Nothing at all is the usual case, and it is deliberate: a window that
+/// permanently carries a row reading "up to date" has taught the user to read
+/// past that row by the time it matters.
+fn update_banner(u: &UpdateUi) -> String {
+    match u {
+        UpdateUi::Nothing => String::new(),
+        UpdateUi::Available(v) => format!(
+            r##"<div class="banner">
+    <div class="bt"><b>Version {v} is available</b><span>You have {here}. <a href="#" onclick="send('notes');return false">See what changed</a></span></div>
+    <button class="primary" onclick="send('update')">Update now</button>
+  </div>"##,
+            v = esc(v),
+            here = esc(gcloud_dot_core::VERSION),
+        ),
+        UpdateUi::Working(step) => format!(
+            r#"<div class="banner">
+    <div class="spin"></div>
+    <div class="bt"><b>Updating</b><span>{step}</span></div>
+  </div>"#,
+            step = esc(step),
+        ),
+        UpdateUi::Restarting(v) => format!(
+            r#"<div class="banner">
+    <div class="bt"><b>Updated to {v}</b><span>GCloud Dot restarts in a moment to finish.</span></div>
+  </div>"#,
+            v = esc(v),
+        ),
+        UpdateUi::Handed(v) => format!(
+            r#"<div class="banner">
+    <div class="spin"></div>
+    <div class="bt"><b>Installing {v}</b><span>Your package manager is doing this. GCloud Dot reopens when it finishes.</span></div>
+  </div>"#,
+            v = esc(v),
+        ),
+        UpdateUi::Manual {
+            version,
+            command,
+            why,
+        } => format!(
+            r#"<div class="banner">
+    <div class="bt"><b>Version {v} is available</b><span>{why}</span><code>{cmd}</code></div>
+  </div>"#,
+            v = esc(version),
+            why = esc(why),
+            cmd = esc(command),
+        ),
+        UpdateUi::Failed(reason) => format!(
+            r#"<div class="banner bad">
+    <div class="bt"><b>The update did not finish</b><span>{reason}</span></div>
+    <button onclick="send('update')">Try again</button>
+  </div>"#,
+            reason = esc(reason),
+        ),
+    }
 }
 
 /// The complete document, for the initial load.
@@ -472,7 +595,7 @@ mod tests {
     #[test]
     fn renders_the_account_and_evidence() {
         let (status, state) = fixture();
-        let page = document(&view(&status, &state), Theme::System);
+        let page = document(&view(&status, &state, &UpdateUi::Nothing), Theme::System);
         assert!(page.contains("nic@glazkov.com"));
         assert!(page.contains("my-project"));
         assert!(page.contains("16.06"));
@@ -488,7 +611,7 @@ mod tests {
             hours: 16.0,
             source: EstimateSource::FewObservations { count: 1 },
         };
-        let v = view(&status, &state);
+        let v = view(&status, &state, &UpdateUi::Nothing);
         assert_eq!(v.evidence, Evidence::Settling);
         let page = document(&v, Theme::System);
         assert!(page.contains("measured, n=1, settling"));
@@ -505,15 +628,89 @@ mod tests {
             hours: 20.0,
             source: EstimateSource::Default,
         };
-        let v = view(&status, &state);
+        let v = view(&status, &state, &UpdateUi::Nothing);
         assert_eq!(v.evidence, Evidence::Inferred);
         assert!(document(&v, Theme::System).contains("Not yet measured"));
     }
 
     #[test]
+    fn an_up_to_date_window_carries_no_update_banner() {
+        let (status, state) = fixture();
+        let v = view(&status, &state, &UpdateUi::Nothing);
+        assert!(!body(&v).contains("class=\"banner\""));
+    }
+
+    #[test]
+    fn an_available_update_offers_one_button_that_installs_it() {
+        let (status, state) = fixture();
+        let v = view(&status, &state, &UpdateUi::Available("9.9.9".into()));
+        let html = body(&v);
+        assert!(html.contains("Version 9.9.9 is available"));
+        assert!(
+            html.contains("send('notes')"),
+            "offer the release notes before installing"
+        );
+        assert!(html.contains("send('update')"));
+        assert!(html.contains("Update now"));
+    }
+
+    #[test]
+    fn an_upgrade_in_progress_offers_nothing_to_click() {
+        // Clicking again mid download would start a second one over the same
+        // staging directory, so the button must not be there to click.
+        let (status, state) = fixture();
+        let v = view(&status, &state, &UpdateUi::Working("Downloading".into()));
+        let html = body(&v);
+        assert!(html.contains("Downloading"));
+        assert!(!html.contains("send('update')"));
+    }
+
+    #[test]
+    fn a_package_managed_copy_is_shown_the_command_and_no_button() {
+        let (status, state) = fixture();
+        let v = view(
+            &status,
+            &state,
+            &UpdateUi::Manual {
+                version: "9.9.9".into(),
+                command: "sudo apt install ./gcloud-dot.deb".into(),
+                why: "apt owns these files.".into(),
+            },
+        );
+        let html = body(&v);
+        assert!(html.contains("sudo apt install"));
+        assert!(
+            !html.contains("send('update')"),
+            "offering a button that cannot work is worse than offering none"
+        );
+    }
+
+    #[test]
+    fn a_failed_update_can_be_retried() {
+        let (status, state) = fixture();
+        let v = view(&status, &state, &UpdateUi::Failed("network is down".into()));
+        let html = body(&v);
+        assert!(html.contains("network is down"));
+        assert!(html.contains("send('update')"));
+    }
+
+    #[test]
+    fn a_hostile_failure_message_cannot_inject_markup() {
+        // The reason can come from a package manager's output, which is not
+        // ours to trust inside a webview.
+        let (status, state) = fixture();
+        let v = view(
+            &status,
+            &state,
+            &UpdateUi::Failed("<img src=x onerror=alert(1)>".into()),
+        );
+        assert!(!body(&v).contains("<img"));
+    }
+
+    #[test]
     fn theme_choice_reaches_the_document() {
         let (status, state) = fixture();
-        let v = view(&status, &state);
+        let v = view(&status, &state, &UpdateUi::Nothing);
         // Assert on the html tag, not the whole document: the stylesheet
         // mentions [data-theme=...] in its selectors no matter what is chosen.
         assert!(document(&v, Theme::Dark).contains(r#"<html lang="en" data-theme="dark">"#));
@@ -552,7 +749,7 @@ mod tests {
     fn escapes_values_that_come_from_the_environment() {
         let (mut status, state) = fixture();
         status.config.as_mut().unwrap().name = "<img src=x onerror=alert(1)>".into();
-        let page = document(&view(&status, &state), Theme::System);
+        let page = document(&view(&status, &state, &UpdateUi::Nothing), Theme::System);
         assert!(!page.contains("<img src=x"));
         assert!(page.contains("&lt;img"));
     }
@@ -561,7 +758,7 @@ mod tests {
     fn a_signed_out_panel_does_not_show_a_countdown() {
         let (mut status, state) = fixture();
         status.auth = AuthState::Expired;
-        let v = view(&status, &state);
+        let v = view(&status, &state, &UpdateUi::Nothing);
         assert_eq!(v.headline, "Signed out");
         assert!(v.rows.iter().all(|(k, _)| k != "Est. re-auth"));
     }
@@ -569,7 +766,7 @@ mod tests {
     #[test]
     fn gaps_are_computed_between_consecutive_logins() {
         let (status, state) = fixture();
-        let v = view(&status, &state);
+        let v = view(&status, &state, &UpdateUi::Nothing);
         assert_eq!(v.logins.len(), 3);
         assert_eq!(v.logins[0].2, "+16.0h");
         assert_eq!(v.logins[2].2, "");
@@ -579,13 +776,13 @@ mod tests {
     fn one_sample_draws_no_sparkline() {
         let (status, mut state) = fixture();
         state.samples = vec![16.0];
-        assert!(!body(&view(&status, &state)).contains("class=\"spark\""));
+        assert!(!body(&view(&status, &state, &UpdateUi::Nothing)).contains("class=\"spark\""));
     }
 
     #[test]
     fn the_refresh_script_is_valid_javascript_literals() {
         let (status, state) = fixture();
-        let s = refresh_script(&view(&status, &state), Theme::Dark);
+        let s = refresh_script(&view(&status, &state, &UpdateUi::Nothing), Theme::Dark);
         assert!(s.contains("setAttribute('data-theme', \"dark\")"));
         assert!(s.contains("document.body.innerHTML = \""));
     }

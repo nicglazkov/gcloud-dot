@@ -53,6 +53,12 @@ enum Command {
     Paths,
     /// Ask the running menu bar or tray app to exit.
     Quit,
+    /// Install the newest version.
+    Upgrade {
+        /// Report what is available and change nothing.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -65,6 +71,7 @@ fn main() -> ExitCode {
         Command::Config { name } => config(name, cli.json),
         Command::Paths => paths_cmd(cli.json),
         Command::Quit => quit(),
+        Command::Upgrade { check } => upgrade(check, cli.json),
     }
 }
 
@@ -180,6 +187,135 @@ fn quit() -> ExitCode {
     let _ = std::fs::remove_file(&path);
     eprintln!("No running GCloud Dot answered. It may already be stopped.");
     ExitCode::from(1)
+}
+
+/// Install the newest version, by whichever route this copy was installed.
+///
+/// Exit codes: 0 done or already newest, 1 a package manager has to do it,
+/// 2 something failed.
+fn upgrade(check_only: bool, json: bool) -> ExitCode {
+    use gcloud_dot_core::upgrade::{self, Outcome};
+    let current = gcloud_dot_core::VERSION;
+
+    if check_only {
+        let Some(release) = upgrade::latest() else {
+            eprintln!("could not reach GitHub to check for a new version");
+            return ExitCode::from(2);
+        };
+        let newer = upgrade::is_newer(&release.version, current);
+        let kind = upgrade::detect();
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "current": current,
+                    "latest": release.version,
+                    "update_available": newer,
+                    "install_kind": format!("{kind:?}"),
+                    "command": kind.manager_command(),
+                })
+            );
+        } else if newer {
+            println!("{current} is installed. {} is available.", release.version);
+            println!("Run `gcloud-dot upgrade` to install it.");
+        } else {
+            println!("{current} is the newest version.");
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    // Progress goes to stderr so `--json` keeps a clean document on stdout.
+    let show = |line: &str| eprintln!("{line}");
+    let quiet = |_: &str| {};
+    let progress: &dyn Fn(&str) = if json { &quiet } else { &show };
+
+    // Stand the tray down before its files move. It would survive the swap,
+    // but it would go on running the version that was just replaced, and the
+    // user would reasonably expect the icon to be the new one.
+    let tray_was_running = matches!(
+        gcloud_dot_core::request_quit().map(|_| wait_for_quit()),
+        Ok(true)
+    );
+
+    let result = upgrade::run(current, progress);
+
+    match result {
+        Ok(Outcome::UpToDate(v)) => {
+            if tray_was_running {
+                let _ = upgrade::schedule_relaunch();
+            }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"result": "up_to_date", "version": v})
+                );
+            } else {
+                println!("{v} is the newest version.");
+            }
+            ExitCode::SUCCESS
+        }
+        Ok(Outcome::Upgraded { from, to }) => {
+            let _ = upgrade::schedule_relaunch();
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"result": "upgraded", "from": from, "to": to})
+                );
+            } else {
+                println!("Upgraded from {from} to {to}.");
+            }
+            ExitCode::SUCCESS
+        }
+        Ok(Outcome::Handed { to, command }) => {
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"result": "handed_over", "to": to, "command": command})
+                );
+            } else {
+                println!("{command} is installing {to}.");
+            }
+            ExitCode::SUCCESS
+        }
+        Ok(Outcome::Manual { to, command, why }) => {
+            if tray_was_running {
+                let _ = upgrade::schedule_relaunch();
+            }
+            if json {
+                println!(
+                    "{}",
+                    serde_json::json!({"result": "manual", "to": to, "command": command, "why": why})
+                );
+            } else {
+                println!("{to} is available. {why}");
+                println!("Run: {command}");
+            }
+            ExitCode::from(1)
+        }
+        Err(e) => {
+            if tray_was_running {
+                let _ = upgrade::schedule_relaunch();
+            }
+            eprintln!("upgrade failed: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// Wait for a running tray to consume a quit request, reporting whether one did.
+///
+/// The tray deletes the file as it exits, so the file going away is the
+/// acknowledgement, and it staying put means nothing was listening.
+fn wait_for_quit() -> bool {
+    let path = gcloud_dot_core::paths::quit_request_path();
+    for _ in 0..40 {
+        if !path.exists() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    let _ = std::fs::remove_file(&path);
+    false
 }
 
 fn paths_cmd(json: bool) -> ExitCode {

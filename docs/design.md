@@ -131,11 +131,37 @@ An expiry notice is different: it names no time, so it cannot go stale. It is
 suppressed *without* being marked, and fires at the first moment outside quiet
 hours.
 
-### Check for updates, never self-update
+### Update in place, but only what nothing else owns
 
-On every platform something else owns the installed files. A self-updater
-writing over them leaves the package manager describing a version that is no
-longer on disk.
+The app can install a new version itself, from a notification and one button.
+What it must never do is replace files a package manager put there: that manager
+keeps a database describing them, and writing over them behind its back leaves
+it describing a version that is no longer on disk, ready to put the old one back
+at the next upgrade.
+
+So the updater first works out how this copy arrived, and every question it asks
+is about *this executable* rather than about the machine. "A cask is installed"
+and "this file belongs to that cask" are different claims, and answering the
+easier one tells a developer running a build out of `target/debug` that Homebrew
+owns it. Three routes follow from the answer:
+
+- **Nothing owns it** (disk image, shell installer, AppImage): download, verify,
+  replace, restart.
+- **A manager that needs no password** (Homebrew, winget): run that manager and
+  let it do the work it already knows how to do.
+- **A manager that needs root** (apt, pacman): change nothing, and show the
+  command.
+
+### Verify what was downloaded, by signature where there is one
+
+A checksum taken from the same release page as the file proves only that the
+download was not corrupted in transit. It says nothing about who produced it.
+
+On macOS the app therefore checks the downloaded bundle's Developer ID team and
+asks Gatekeeper for its own verdict before anything is moved into place, which
+is a claim TLS and a hash cannot make. Windows reuses the project's own signed
+installer rather than swapping files by hand, so the installer's own integrity
+checks apply and the uninstall record stays truthful.
 
 ### Shell out to curl for the update check
 

@@ -1,43 +1,23 @@
-//! Checking whether a newer release exists.
+//! Checking for and installing a new version, from the window.
 //!
-//! Checks and reports. It never replaces a binary: on every platform the app
-//! is installed by something that owns its files, Homebrew, winget, apt, an
-//! installer, and a self-updater writing over those leaves the package
-//! manager describing a version that is no longer on disk.
-//!
-//! The request is made with `curl`, which ships with macOS, Windows 10 1803 and
-//! later, and effectively every Linux. Linking a TLS stack for one request a
-//! day would add more to the binary than the rest of the app puts together.
+//! The decisions about what may be replaced and how live in
+//! [`gcloud_dot_core::upgrade`], shared with the command line so the two cannot
+//! disagree about whether Homebrew owns these files. What is here is only the
+//! part that belongs to a window: run the work off the event loop, and report
+//! each step back to it.
 
-use std::process::Stdio;
+// Re-exported: the shape belongs to the window, but every caller reaches it
+// through this module, which is where updates are otherwise dealt with.
+pub use crate::panel::UpdateUi;
+use gcloud_dot_core::upgrade::{self, Outcome};
 use std::time::Duration;
 
-const RELEASES_API: &str = "https://api.github.com/repos/nicglazkov/gcloud-dot/releases/latest";
-pub const RELEASES_PAGE: &str = "https://github.com/nicglazkov/gcloud-dot/releases/latest";
+pub use gcloud_dot_core::upgrade::RELEASES_PAGE;
 
-/// Returns the newer version's tag, or `None` if this build is current or the
-/// check could not be made.
+/// Whether a newer release exists, without touching anything.
 pub fn check() -> Option<String> {
-    let out = gcloud_dot_core::proc::quiet("curl")
-        .args([
-            "-fsSL",
-            "--max-time",
-            "15",
-            "-H",
-            "Accept: application/vnd.github+json",
-            "-A",
-            concat!("gcloud-dot/", env!("CARGO_PKG_VERSION")),
-            RELEASES_API,
-        ])
-        .stdin(Stdio::null())
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let body: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-    let tag = body.get("tag_name")?.as_str()?.trim_start_matches('v');
-    is_newer(tag, gcloud_dot_core::VERSION).then(|| tag.to_string())
+    let release = upgrade::latest()?;
+    upgrade::is_newer(&release.version, gcloud_dot_core::VERSION).then_some(release.version)
 }
 
 /// Spawn the check on a worker thread and hand the result back.
@@ -50,27 +30,41 @@ pub fn check_in_background<F: FnOnce(String) + Send + 'static>(delay: Duration, 
     });
 }
 
-/// Numeric comparison of dotted versions.
+/// Run the upgrade on a worker thread.
 ///
-/// Anything non-numeric compares as zero, which makes a pre-release tag sort
-/// below the release it precedes, the safe direction, since the alternative
-/// is nagging every user of a stable build to "upgrade" to a beta.
-fn is_newer(candidate: &str, current: &str) -> bool {
-    let parse = |v: &str| -> Vec<u32> {
-        v.split(['.', '-', '+'])
-            .map(|p| p.parse().unwrap_or(0))
-            .take(4)
-            .collect()
-    };
-    let (a, b) = (parse(candidate), parse(current));
-    for i in 0..a.len().max(b.len()) {
-        let x = a.get(i).copied().unwrap_or(0);
-        let y = b.get(i).copied().unwrap_or(0);
-        if x != y {
-            return x > y;
+/// `progress` is called from that thread for each step and `done` once at the
+/// end, so both have to reach the event loop rather than touch the window.
+pub fn run_in_background<P, D>(progress: P, done: D)
+where
+    P: Fn(String) + Send + 'static,
+    D: FnOnce(Result<Outcome, String>) + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let report = |line: &str| progress(line.to_string());
+        done(upgrade::run(gcloud_dot_core::VERSION, &report));
+    });
+}
+
+impl UpdateUi {
+    /// Is an upgrade under way? While it is, the button must not start another.
+    pub fn is_busy(&self) -> bool {
+        matches!(self, UpdateUi::Working(_))
+    }
+
+    /// Turn a finished attempt into what the window should show.
+    pub fn from_outcome(result: Result<Outcome, String>) -> Self {
+        match result {
+            Ok(Outcome::UpToDate(_)) => UpdateUi::Nothing,
+            Ok(Outcome::Upgraded { to, .. }) => UpdateUi::Restarting(to),
+            Ok(Outcome::Handed { to, .. }) => UpdateUi::Handed(to),
+            Ok(Outcome::Manual { to, command, why }) => UpdateUi::Manual {
+                version: to,
+                command,
+                why,
+            },
+            Err(e) => UpdateUi::Failed(e),
         }
     }
-    false
 }
 
 #[cfg(test)]
@@ -78,28 +72,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn detects_newer_versions() {
-        assert!(is_newer("1.0.1", "1.0.0"));
-        assert!(is_newer("1.1.0", "1.0.9"));
-        assert!(is_newer("2.0.0", "1.99.99"));
+    fn a_finished_replacement_promises_a_restart() {
+        let ui = UpdateUi::from_outcome(Ok(Outcome::Upgraded {
+            from: "1.0.5".into(),
+            to: "1.0.6".into(),
+        }));
+        assert_eq!(ui, UpdateUi::Restarting("1.0.6".into()));
+        assert!(!ui.is_busy());
     }
 
     #[test]
-    fn ignores_the_same_or_older() {
-        assert!(!is_newer("1.0.0", "1.0.0"));
-        assert!(!is_newer("0.9.9", "1.0.0"));
-        assert!(!is_newer("1.0", "1.0.0"));
+    fn a_package_managed_copy_is_told_the_command() {
+        let ui = UpdateUi::from_outcome(Ok(Outcome::Manual {
+            to: "1.0.6".into(),
+            command: "sudo apt install ./gcloud-dot.deb".into(),
+            why: "apt owns these files.".into(),
+        }));
+        match ui {
+            UpdateUi::Manual { command, .. } => assert!(command.starts_with("sudo apt")),
+            other => panic!("expected a command to run, got {other:?}"),
+        }
     }
 
     #[test]
-    fn a_prerelease_never_prompts_a_stable_user() {
-        assert!(!is_newer("1.0.0-rc1", "1.0.0"));
-        assert!(is_newer("1.0.1-rc1", "1.0.0"));
+    fn finding_nothing_new_says_nothing() {
+        // The window must not sprout a banner reading "up to date". The absence
+        // of one already says that.
+        let ui = UpdateUi::from_outcome(Ok(Outcome::UpToDate("1.0.5".into())));
+        assert_eq!(ui, UpdateUi::Nothing);
     }
 
     #[test]
-    fn nonsense_tags_do_not_prompt_an_upgrade() {
-        assert!(!is_newer("nightly", "1.0.0"));
-        assert!(!is_newer("", "1.0.0"));
+    fn a_failure_is_shown_rather_than_swallowed() {
+        let ui = UpdateUi::from_outcome(Err("the download does not match its checksum".into()));
+        assert!(matches!(ui, UpdateUi::Failed(_)));
+        assert!(!ui.is_busy());
+    }
+
+    #[test]
+    fn work_in_progress_blocks_a_second_attempt() {
+        assert!(UpdateUi::Working("Downloading".into()).is_busy());
+        assert!(!UpdateUi::Available("1.0.6".into()).is_busy());
     }
 }

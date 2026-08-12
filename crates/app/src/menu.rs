@@ -255,7 +255,9 @@ pub fn build(
     if let Some(version) = update_available {
         owned.push(Box::new(MenuItem::with_id(
             id::UPDATE,
-            format!("Update available: {version}"),
+            // Worded as the action it performs, not as an announcement. It
+            // installs the release; it does not open a page about it.
+            format!("Update to {version}"),
             true,
             None,
         )));

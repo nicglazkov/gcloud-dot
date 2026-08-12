@@ -216,6 +216,10 @@
     <code>--json</code> gives a stable document including
     <code>estimate_is_measured</code>, so anything consuming it can tell a
     measurement from a guess.</p>
+    <p>Updating is one command as well, and it picks the right route for how
+    you installed it.</p>
+    <pre><code>$ gcloud-dot upgrade
+Upgraded from 1.0.5 to 1.1.0.</code></pre>
   </section>
 
   <section class="panel" id="faq">
@@ -251,10 +255,17 @@
     binary, and draws an icon.</p></details>
 
     <details class="qa"><summary>Will it update itself?</summary>
-    <p>It checks and tells you; it never replaces its own files. On every
-    platform something else owns those files, Homebrew, winget, apt, the
-    installer, and a self-updater writing over them leaves your package manager
-    describing a version that is no longer on disk.</p></details>
+    <p>Yes. When a new version is released you get a notification, and the
+    window offers one button that installs it and restarts the app. There is a
+    single command for the same thing, <code>gcloud-dot upgrade</code>.</p>
+    <p>With one deliberate exception: if a package manager installed GCloud Dot,
+    that manager owns the files. Homebrew and winget need no password, so the
+    app runs them for you. apt and pacman need root, so the app changes nothing
+    and shows you the command instead. Writing over files a package manager
+    owns would leave it describing a version that is no longer on disk.</p>
+    <p>Every download is checked against the release's published checksum, and
+    on macOS the new app's Developer ID signature is verified and passed to
+    Gatekeeper before it is allowed to replace the old one.</p></details>
 
     <details class="qa"><summary>I used the older script installer. What happens?</summary>
     <p>It is replaced cleanly. GCloud Dot keeps the same identity as the

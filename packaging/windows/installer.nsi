@@ -100,6 +100,12 @@ Section "GCloud Dot" SecMain
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   IntFmt $0 "0x%08X" $0
   WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" "$0"
+
+  ; A silent install starts the tray itself. The finish page carries that button
+  ; in the interactive case, and silent mode never draws pages, so without this
+  ; an in-app update would stop the running tray and leave nothing in its place.
+  IfSilent 0 +2
+    Exec '"$INSTDIR\gcloud-dot-tray.exe"'
 SectionEnd
 
 Section "Uninstall"

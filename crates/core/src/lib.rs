@@ -25,6 +25,7 @@ pub mod proc;
 pub mod settings;
 pub mod state;
 pub mod status;
+pub mod upgrade;
 
 pub use engine::{Engine, Event, Plan, Urgency};
 pub use estimate::{Estimate, EstimateSource};
