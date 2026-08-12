@@ -567,6 +567,21 @@ mod tests {
     }
 
     #[test]
+    fn no_caller_can_show_a_placeholder_to_a_user() {
+        // Both `upgrade` and `upgrade --check` quote this. The second one was
+        // still printing <version> and <arch> after the first was fixed, so
+        // the rule is asserted about the function rather than about one path.
+        for kind in [
+            InstallKind::DebPackage,
+            InstallKind::ArchPackage,
+            InstallKind::Homebrew,
+        ] {
+            let c = concrete_command(kind, "1.2.3").expect("a managed copy has a command");
+            assert!(!c.contains('<'), "{kind:?} still shows a placeholder: {c}");
+        }
+    }
+
+    #[test]
     fn commands_that_need_no_filling_in_are_left_alone() {
         assert_eq!(
             concrete_command(InstallKind::Homebrew, "1.2.3").as_deref(),

@@ -204,6 +204,9 @@ fn upgrade(check_only: bool, json: bool) -> ExitCode {
         };
         let newer = upgrade::is_newer(&release.version, current);
         let kind = upgrade::detect();
+        // The version on offer is what fills in the placeholders, so the
+        // command is only worth quoting once there is one.
+        let command = upgrade::concrete_command(kind, &release.version);
         if json {
             println!(
                 "{}",
@@ -212,12 +215,24 @@ fn upgrade(check_only: bool, json: bool) -> ExitCode {
                     "latest": release.version,
                     "update_available": newer,
                     "install_kind": format!("{kind:?}"),
-                    "command": kind.manager_command(),
+                    "command": command,
                 })
             );
         } else if newer {
             println!("{current} is installed. {} is available.", release.version);
-            println!("Run `gcloud-dot upgrade` to install it.");
+            match (kind.can_self_replace() || kind.can_run_manager(), &command) {
+                // Nothing else owns it, or the manager needs no password.
+                (true, _) => println!("Run `gcloud-dot upgrade` to install it."),
+                // Something else owns it, so say what to run instead of
+                // pointing at a command that will only refuse.
+                (false, Some(c)) => {
+                    if let Some(why) = kind.why_manual() {
+                        println!("{why}");
+                    }
+                    println!("Run:\n{c}");
+                }
+                (false, None) => println!("This copy has to be updated by hand."),
+            }
         } else {
             println!("{current} is the newest version.");
         }
