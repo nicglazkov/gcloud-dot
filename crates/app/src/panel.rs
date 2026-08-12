@@ -296,12 +296,21 @@ button:active{transform:translateY(1px)}
 /* The primary action is always brand green, never the status colour. Painting
    "Sign in" red because the session expired reads as a destructive button. */
 button.primary{background:var(--brand); border-color:transparent; color:var(--brand-ink)}
-/* Quit is a real action but not the reason you opened the window, so it takes
-   less room than the two that are. */
-button.quit{flex:0 0 auto; padding:9px 14px; color:var(--muted)}
+/* Destructive, and styled to say so. Only ever reached from the confirmation,
+   never from the row of ordinary actions. */
+button.danger{background:#c8442e; border-color:transparent; color:#fff}
+button.danger:hover{filter:brightness(1.08)}
 button.primary:hover{filter:brightness(1.08)}
-footer{text-align:center; color:var(--faint); font-size:11px; margin-top:9px}
+footer{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+       color:var(--faint); font-size:11px; margin-top:9px}
 footer a{color:var(--faint)}
+/* Set apart from the version and the website link, because it is the one thing
+   down here that stops the app rather than describing it. */
+.quitlink{margin-left:auto; text-decoration:none; opacity:.8}
+.quitlink:hover{opacity:1; color:#c8442e; text-decoration:underline}
+#confirm .ctext{margin-bottom:11px}
+#confirm b{display:block; font-size:13.5px; font-weight:640; margin-bottom:3px}
+#confirm span{color:var(--muted); font-size:11.5px; line-height:1.45}
 .banner a{color:var(--muted)}
 
 /* The update banner. Brand green rather than the status colour, for the same
@@ -428,12 +437,28 @@ pub fn body(v: &PanelView) -> String {
 </div>
 
 <div class="bottom">
-  <div class="actions">
-    <button class="primary" onclick="send('login')">Sign in</button>
-    <button onclick="send('check')">Check now</button>
-    <button class="quit" onclick="send('quit')">Quit</button>
+  <div id="normal">
+    <div class="actions">
+      <button class="primary" onclick="send('login')">Sign in</button>
+      <button onclick="send('check')">Check now</button>
+      <button onclick="send('close')">Close</button>
+    </div>
+    <footer>
+      GCloud Dot {version}, <a href="#" onclick="send('website');return false">website</a>
+      <a href="#" class="quitlink" onclick="askQuit();return false">Quit GCloud Dot</a>
+    </footer>
   </div>
-  <footer>GCloud Dot {version}, <a href="#" onclick="send('website');return false">website</a></footer>
+  <div id="confirm" hidden>
+    <div class="ctext">
+      <b>Quit GCloud Dot?</b>
+      <span>The dot leaves the menu bar and nothing will warn you before your
+      session expires. Close only hides this window and leaves it watching.</span>
+    </div>
+    <div class="actions">
+      <button class="primary" onclick="hideQuit()">Keep it running</button>
+      <button class="danger" onclick="send('quit')">Quit</button>
+    </div>
+  </div>
 </div>"##,
         banner = update_banner(&v.update),
         headline = esc(&v.headline),
@@ -528,6 +553,25 @@ pub fn document(v: &PanelView, theme: Theme) -> String {
 {body}
 <script>
   function send(action) {{ window.ipc.postMessage(JSON.stringify({{action}})); }}
+  // Quitting is one click away, but never the click someone lands on by
+  // reflex when they mean to dismiss a window.
+  function askQuit() {{
+    window.__gdConfirming = true;
+    document.getElementById('normal').hidden = true;
+    document.getElementById('confirm').hidden = false;
+  }}
+  function hideQuit() {{
+    window.__gdConfirming = false;
+    var c = document.getElementById('confirm'), n = document.getElementById('normal');
+    if (c) c.hidden = true;
+    if (n) n.hidden = false;
+  }}
+  // Escape is what a panel like this is expected to answer to, and it closes
+  // the window rather than stopping the app.
+  document.addEventListener('keydown', function (e) {{
+    if (e.key !== 'Escape') return;
+    if (window.__gdConfirming) {{ hideQuit(); }} else {{ send('close'); }}
+  }});
 </script>
 </body>
 </html>"#,
@@ -546,9 +590,13 @@ pub fn document(v: &PanelView, theme: Theme) -> String {
 pub fn refresh_script(v: &PanelView, theme: Theme) -> String {
     let attr = theme.attr();
     format!(
+        // Skipped entirely while the quit confirmation is up. A probe
+        // finishing at the wrong moment would otherwise replace the body and
+        // put a live Quit button back under a cursor that was travelling
+        // towards Cancel.
         "document.documentElement.setAttribute('data-theme', {theme});\
          document.documentElement.style.setProperty('--level', {level});\
-         document.body.innerHTML = {body};",
+         if (!window.__gdConfirming) {{ document.body.innerHTML = {body}; }}",
         theme = serde_json::to_string(attr).unwrap_or_else(|_| "''".into()),
         level = serde_json::to_string(&rgb_css(v.level)).unwrap_or_else(|_| "''".into()),
         body = serde_json::to_string(&body(v)).unwrap_or_else(|_| "''".into()),
@@ -705,6 +753,67 @@ mod tests {
             &UpdateUi::Failed("<img src=x onerror=alert(1)>".into()),
         );
         assert!(!body(&v).contains("<img"));
+    }
+
+    #[test]
+    fn closing_the_window_is_never_confused_with_quitting() {
+        // Reported by real users: they hit Quit meaning "dismiss this window",
+        // and the app disappeared from the menu bar. The row of ordinary
+        // actions must therefore offer a way out of the window and no way to
+        // stop the app.
+        let (status, state) = fixture();
+        let html = body(&view(&status, &state, &UpdateUi::Nothing));
+
+        let actions = html
+            .split(r#"<div class="actions">"#)
+            .nth(1)
+            .expect("the window has an action row");
+        assert!(
+            actions.contains("send('close')"),
+            "no way to close the window"
+        );
+        assert!(
+            !actions.contains("send('quit')"),
+            "quit must not sit in the row of safe actions"
+        );
+    }
+
+    #[test]
+    fn quitting_says_what_it_costs_before_it_happens() {
+        let (status, state) = fixture();
+        let html = body(&view(&status, &state, &UpdateUi::Nothing));
+        // Reachable, but by way of a confirmation that names the consequence.
+        assert!(html.contains("askQuit()"), "quit is unreachable");
+        assert!(html.contains("Quit GCloud Dot?"));
+        assert!(
+            html.contains("leaves the menu bar"),
+            "the confirmation should say what stops happening"
+        );
+        assert!(
+            html.contains("send('quit')"),
+            "the confirmation must be able to quit"
+        );
+    }
+
+    #[test]
+    fn the_two_labels_cannot_be_read_as_the_same_thing() {
+        let (status, state) = fixture();
+        let html = body(&view(&status, &state, &UpdateUi::Nothing));
+        // "Quit" alone next to "Close" invites the reading that one shuts the
+        // window and the other shuts it harder.
+        assert!(html.contains(">Close</button>"));
+        assert!(html.contains("Quit GCloud Dot</a>"));
+    }
+
+    #[test]
+    fn a_refresh_cannot_pull_the_confirmation_away_mid_click() {
+        let (status, state) = fixture();
+        let script = refresh_script(&view(&status, &state, &UpdateUi::Nothing), Theme::System);
+        assert!(
+            script.contains("__gdConfirming"),
+            "a probe finishing mid confirmation would rebuild the body and put a \
+             live Quit button under a cursor heading for Cancel"
+        );
     }
 
     #[test]

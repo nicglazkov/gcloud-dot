@@ -233,7 +233,7 @@ fn main() {
             }
 
             Event::UserEvent(UserEvent::Panel(message)) => {
-                app.on_panel_message(&message, &proxy);
+                app.on_panel_message(&message, target, &proxy);
             }
 
             // gcloud runs with no window, so a failure has nowhere to appear
@@ -729,6 +729,7 @@ impl App {
     fn on_panel_message(
         &mut self,
         message: &str,
+        target: &tao::event_loop::EventLoopWindowTarget<UserEvent>,
         proxy: &tao::event_loop::EventLoopProxy<UserEvent>,
     ) {
         let Ok(value) = serde_json::from_str::<serde_json::Value>(message) else {
@@ -754,6 +755,10 @@ impl App {
             Some("notes") => {
                 let _ = actions::open_url(update::RELEASES_PAGE);
             }
+            // Hides the window and leaves everything else running. This is
+            // what most people mean when they reach for a button to dismiss a
+            // panel, and before it existed the nearest thing to hand was Quit.
+            Some("close") => self.close_panel(target),
             // Routed through the menu handler so quitting behaves identically
             // however it was asked for.
             Some("quit") => {

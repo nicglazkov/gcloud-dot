@@ -147,8 +147,15 @@ $ gcloud-dot
 | `gcloud-dot upgrade --check` | Say what is available and change nothing |
 
 `quit` matters more than it looks: when the menu bar is full, macOS stops
-drawing the icon, and the menu holding Quit goes with it. The panel has a quit
-link too, and while it is open the app is a normal application, so ⌘Q works.
+drawing the icon, and the menu holding Quit goes with it. The window offers
+Quit GCloud Dot as well, and while it is open the app is a normal application,
+so ⌘Q works.
+
+Closing that window and quitting the app are deliberately not the same button.
+People reached for Quit meaning "dismiss this", and the dot vanished from the
+menu bar. The row of actions now ends in Close, which is where that reflex
+lands and which only hides the window; Escape does the same. Quit sits apart in
+the footer and asks first, saying what stops happening.
 
 Exit codes are part of the interface (`0` signed in, `1` signed out, `2`
 unknown), so a shell prompt or a CI step can branch without parsing anything.

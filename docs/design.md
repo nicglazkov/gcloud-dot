@@ -131,6 +131,20 @@ An expiry notice is different: it names no time, so it cannot go stale. It is
 suppressed *without* being marked, and fires at the first moment outside quiet
 hours.
 
+### Close and Quit are not neighbours
+
+The window's action row used to read Sign in, Check now, Quit. People hit Quit
+meaning "dismiss this window", and the app stopped: no dot, no warning before
+the next expiry, and no obvious way back.
+
+The reflex is not the mistake. A panel with buttons along the bottom invites the
+reading that the last one dismisses it, so the last one is now Close, and
+Escape does the same. Quit moved out of the row entirely, into the footer, and
+asks first in words that name what stops happening rather than repeating the
+verb. A refresh arriving mid confirmation is suppressed, because rebuilding the
+body would put a live Quit button under a cursor already travelling towards
+Cancel.
+
 ### Update in place, but only what nothing else owns
 
 The app can install a new version itself, from a notification and one button.

@@ -63,6 +63,7 @@ impl InstallKind {
         match self {
             InstallKind::Homebrew => Some("brew upgrade --cask nicglazkov/tap/gcloud-dot"),
             InstallKind::DebPackage => Some("sudo apt install ./gcloud-dot_<version>_<arch>.deb"),
+            // See `concrete_command` for what the user is actually shown.
             InstallKind::ArchPackage => Some("yay -Syu gcloud-dot"),
             InstallKind::SelfManaged | InstallKind::AppImage | InstallKind::WindowsInstaller => {
                 None
@@ -535,6 +536,34 @@ mod tests {
     }
 
     #[test]
+    fn the_command_shown_to_an_apt_user_can_actually_be_run() {
+        // The generic form carries <version> and <arch> placeholders, which is
+        // not something anybody can paste into a shell.
+        let c = concrete_command(InstallKind::DebPackage, "1.2.3").unwrap();
+        assert!(!c.contains('<'), "placeholders reached the user: {c}");
+        assert!(c.contains("1.2.3"));
+        assert!(
+            c.contains("curl") && c.contains("sudo apt install ./"),
+            "the file has to be fetched before apt can install it: {c}"
+        );
+        let arch = if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "amd64"
+        };
+        assert!(c.contains(arch), "wrong architecture in {c}");
+    }
+
+    #[test]
+    fn commands_that_need_no_filling_in_are_left_alone() {
+        assert_eq!(
+            concrete_command(InstallKind::Homebrew, "1.2.3").as_deref(),
+            Some("brew upgrade --cask nicglazkov/tap/gcloud-dot")
+        );
+        assert!(concrete_command(InstallKind::SelfManaged, "1.2.3").is_none());
+    }
+
+    #[test]
     fn detects_newer_versions_only() {
         assert!(is_newer("1.0.6", "1.0.5"));
         assert!(is_newer("1.1.0", "1.0.9"));
@@ -892,6 +921,32 @@ pub enum Outcome {
     },
 }
 
+/// The command to run, with the version and architecture filled in.
+///
+/// [`InstallKind::manager_command`] can only speak in general terms, because it
+/// does not know what release is on offer. Telling somebody to run
+/// `sudo apt install ./gcloud-dot_<version>_<arch>.deb` is telling them to go
+/// and work it out, so once the release is known the placeholders are replaced
+/// and the download that has to happen first is spelled out.
+pub fn concrete_command(kind: InstallKind, version: &str) -> Option<String> {
+    let generic = kind.manager_command()?;
+    match kind {
+        InstallKind::DebPackage => {
+            let arch = if cfg!(target_arch = "aarch64") {
+                "arm64"
+            } else {
+                "amd64"
+            };
+            let file = format!("gcloud-dot_{version}_{arch}.deb");
+            Some(format!(
+                "curl -fsSLO https://github.com/{REPO}/releases/download/v{version}/{file}\n\
+                 sudo apt install ./{file}"
+            ))
+        }
+        _ => Some(generic.to_string()),
+    }
+}
+
 /// The whole upgrade, from asking GitHub to putting files in place.
 ///
 /// Shared by the command line and the window so the two cannot drift. The
@@ -927,8 +982,8 @@ pub fn run(current: &str, progress: &dyn Fn(&str)) -> Result<Outcome, String> {
     }
 
     Ok(Outcome::Manual {
+        command: concrete_command(kind, &to).unwrap_or(command),
         to,
-        command,
         why: kind.why_manual().unwrap_or_default().to_string(),
     })
 }
