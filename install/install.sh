@@ -70,11 +70,33 @@ curl -fsSL -o "$tmp/pkg.tar.gz" "$url" || die "Download failed: $url"
 tar -xzf "$tmp/pkg.tar.gz" -C "$tmp"
 
 mkdir -p "$PREFIX"
-install -m 0755 "$tmp/gcloud-dot" "$PREFIX/gcloud-dot"
+
+# Stop a running tray before replacing anything. Upgrading in place otherwise
+# leaves the old process running the old code, and it would keep the countdown
+# it had rather than pick up whatever this install fixes.
+if [ -x "$PREFIX/gcloud-dot" ]; then
+  "$PREFIX/gcloud-dot" quit >/dev/null 2>&1 || true
+fi
+pkill -f "$PREFIX/gcloud-dot-tray" 2>/dev/null || true
+
+# Stage beside the target, then rename over it.
+#
+# `install` and `cp` write into the existing file. Doing that to a running
+# executable fails outright on Linux with ETXTBSY, and on macOS corrupts the
+# process that is running it, because the pages it is still executing are
+# rewritten underneath it. A rename leaves the old inode alone, so anything
+# still running keeps working until it exits.
+place() {
+  cp "$1" "$2.new"
+  chmod 0755 "$2.new"
+  mv -f "$2.new" "$2"
+}
+
+place "$tmp/gcloud-dot" "$PREFIX/gcloud-dot"
 say "  installed $PREFIX/gcloud-dot"
 
 if [ "$WANT_GUI" -eq 1 ] && [ -f "$tmp/gcloud-dot-tray" ]; then
-  install -m 0755 "$tmp/gcloud-dot-tray" "$PREFIX/gcloud-dot-tray"
+  place "$tmp/gcloud-dot-tray" "$PREFIX/gcloud-dot-tray"
   say "  installed $PREFIX/gcloud-dot-tray"
 fi
 
