@@ -663,12 +663,35 @@ impl App {
         };
 
         let proxy = self.proxy.clone();
-        let webview = wry::WebViewBuilder::new()
-            .with_html(html)
-            .with_ipc_handler(move |req: wry::http::Request<String>| {
+        let builder = wry::WebViewBuilder::new().with_html(html).with_ipc_handler(
+            move |req: wry::http::Request<String>| {
                 let _ = proxy.send_event(UserEvent::Panel(req.body().clone()));
-            })
-            .build(&window);
+            },
+        );
+
+        // Attached to the window's GTK box on Linux rather than to the window.
+        //
+        // `build` is documented as X11 only, and what it produced here was a
+        // window that opened, sized itself correctly, ran a WebKitWebProcess,
+        // and drew nothing at all: the page background appeared and no element
+        // on top of it ever did. The same HTML in a plain WebKit2 view on the
+        // same machine rendered perfectly, which is what ruled out the styling
+        // and pointed here. wry's own examples all take this route.
+        #[cfg(target_os = "linux")]
+        let webview = {
+            use tao::platform::unix::WindowExtUnix;
+            use wry::WebViewBuilderExtUnix;
+            match window.default_vbox() {
+                Some(vbox) => builder.build_gtk(vbox),
+                // tao puts that box there itself, so this is unreachable in
+                // practice. Falling back rather than failing outright means a
+                // future tao that stops doing so costs the window's looks and
+                // not the window.
+                None => builder.build(&window),
+            }
+        };
+        #[cfg(not(target_os = "linux"))]
+        let webview = builder.build(&window);
 
         match webview {
             Ok(webview) => {
