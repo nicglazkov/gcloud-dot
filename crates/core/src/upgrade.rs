@@ -739,14 +739,37 @@ pub fn current_app_bundle() -> Option<PathBuf> {
 
 #[cfg(windows)]
 fn install_payload(setup: &Path, _kind: InstallKind) -> Result<(), String> {
-    // Run our own installer silently rather than swapping files by hand. It
-    // already stops the running tray, replaces both binaries, and keeps the
-    // Start menu entry and the uninstall record consistent.
+    // Windows will not overwrite an image that is running, and the process
+    // asking for this upgrade is running from one of the two files the
+    // installer is about to replace. The installer stops the tray before it
+    // writes, which covers that one, but nothing can stop the process doing
+    // the asking.
+    //
+    // Renaming is allowed where overwriting is not: an open handle follows the
+    // file rather than the path, so this process carries on executing from the
+    // renamed copy and the installer finds the original name free. Without
+    // this, `gcloud-dot upgrade` reported success while leaving the command
+    // line at the old version, because every File command in the installer had
+    // quietly failed to write over the running executable.
+    let displaced = std::env::current_exe().ok().and_then(|exe| {
+        let aside = exe.with_extension("exe.old");
+        let _ = std::fs::remove_file(&aside);
+        std::fs::rename(&exe, &aside).ok().map(|_| (exe, aside))
+    });
+
     let status = proc::quiet(setup)
         .arg("/S")
         .status()
         .map_err(|e| format!("could not run the installer: {e}"))?;
+
     if !status.success() {
+        // Put it back. A failed upgrade must not also uninstall the thing it
+        // failed to replace.
+        if let Some((exe, aside)) = &displaced {
+            if !exe.exists() {
+                let _ = std::fs::rename(aside, exe);
+            }
+        }
         return Err("the installer did not finish".into());
     }
     Ok(())

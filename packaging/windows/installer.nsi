@@ -54,6 +54,12 @@ Section "GCloud Dot" SecMain
   nsExec::ExecToLog 'taskkill /IM gcloud-dot-tray.exe /F'
   Pop $0
 
+  ; An in-app upgrade renames the running executable aside so this section
+  ; can write over its name. Clear those leftovers. /REBOOTOK because the
+  ; process that renamed one is very likely still running out of it right now.
+  Delete /REBOOTOK "$INSTDIR\gcloud-dot.exe.old"
+  Delete /REBOOTOK "$INSTDIR\gcloud-dot-tray.exe.old"
+
   File "gcloud-dot-tray.exe"
   File "gcloud-dot.exe"
   File "gcloud-dot.ico"
@@ -114,6 +120,8 @@ Section "Uninstall"
 
   Delete "$INSTDIR\gcloud-dot-tray.exe"
   Delete "$INSTDIR\gcloud-dot.exe"
+  Delete /REBOOTOK "$INSTDIR\gcloud-dot-tray.exe.old"
+  Delete /REBOOTOK "$INSTDIR\gcloud-dot.exe.old"
   Delete "$INSTDIR\gcloud-dot.ico"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
