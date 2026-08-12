@@ -259,10 +259,12 @@ Upgraded from 1.0.5 to 1.1.0.</code></pre>
     window offers one button that installs it and restarts the app. There is a
     single command for the same thing, <code>gcloud-dot upgrade</code>.</p>
     <p>With one deliberate exception: if a package manager installed GCloud Dot,
-    that manager owns the files. Homebrew and winget need no password, so the
-    app runs them for you. apt and pacman need root, so the app changes nothing
-    and shows you the command instead. Writing over files a package manager
-    owns would leave it describing a version that is no longer on disk.</p>
+    that manager owns the files. Homebrew needs no password, so the app runs it
+    for you. apt and pacman need root, so the app changes nothing and shows you
+    the command instead. Writing over files a package manager owns would leave
+    it describing a version that is no longer on disk. On Windows the app runs
+    its own signed installer again, which is right whether you downloaded that
+    installer or let winget run it.</p>
     <p>Every download is checked against the release's published checksum, and
     on macOS the new app's Developer ID signature is verified and passed to
     Gatekeeper before it is allowed to replace the old one.</p></details>

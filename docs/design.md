@@ -147,8 +147,14 @@ owns it. Three routes follow from the answer:
 
 - **Nothing owns it** (disk image, shell installer, AppImage): download, verify,
   replace, restart.
-- **A manager that needs no password** (Homebrew, winget): run that manager and
-  let it do the work it already knows how to do.
+- **A manager that needs no password** (Homebrew): run that manager and let it
+  do the work it already knows how to do.
+- **Windows**: run the project's own signed installer again. The direct download
+  and winget both run that installer and leave the same registry keys, so
+  nothing distinguishes them on disk, and running it again is correct for both:
+  it rewrites the Add or remove programs entry that winget reads the installed
+  version from. Calling `winget upgrade` instead would fail for everyone who
+  never used winget.
 - **A manager that needs root** (apt, pacman): change nothing, and show the
   command.
 

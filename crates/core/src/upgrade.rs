@@ -25,8 +25,16 @@ pub enum InstallKind {
     SelfManaged,
     /// Homebrew, which can be upgraded without elevation.
     Homebrew,
-    /// winget, which can be upgraded without elevation for a user scope install.
-    Winget,
+    /// Installed on Windows by this project's own installer, whether the user
+    /// ran it directly or winget ran it for them.
+    ///
+    /// Those two are deliberately one case. Both write the same registry keys,
+    /// so nothing on disk tells them apart, and the answer is the same either
+    /// way: run that installer again. It replaces the files and rewrites the
+    /// Add or remove programs entry, which is where winget reads the installed
+    /// version from, so both routes stay truthful. Running `winget upgrade`
+    /// instead would fail outright for the many users who never used winget.
+    WindowsInstaller,
     /// dpkg or apt. Upgrading needs root, so the app will not attempt it.
     DebPackage,
     /// An Arch package. Upgrading needs root.
@@ -37,24 +45,28 @@ pub enum InstallKind {
 }
 
 impl InstallKind {
-    /// Can the app replace its own files without help?
+    /// Can the app put the new version in place itself?
     pub fn can_self_replace(self) -> bool {
-        matches!(self, InstallKind::SelfManaged | InstallKind::AppImage)
+        matches!(
+            self,
+            InstallKind::SelfManaged | InstallKind::AppImage | InstallKind::WindowsInstaller
+        )
     }
 
     /// Can the app run the upgrade for the user without asking for a password?
     pub fn can_run_manager(self) -> bool {
-        matches!(self, InstallKind::Homebrew | InstallKind::Winget)
+        matches!(self, InstallKind::Homebrew)
     }
 
     /// The command that upgrades this install, for showing or for running.
     pub fn manager_command(self) -> Option<&'static str> {
         match self {
             InstallKind::Homebrew => Some("brew upgrade --cask nicglazkov/tap/gcloud-dot"),
-            InstallKind::Winget => Some("winget upgrade --id nicglazkov.GCloudDot"),
             InstallKind::DebPackage => Some("sudo apt install ./gcloud-dot_<version>_<arch>.deb"),
             InstallKind::ArchPackage => Some("yay -Syu gcloud-dot"),
-            InstallKind::SelfManaged | InstallKind::AppImage => None,
+            InstallKind::SelfManaged | InstallKind::AppImage | InstallKind::WindowsInstaller => {
+                None
+            }
         }
     }
 
@@ -83,7 +95,7 @@ pub struct Evidence {
     pub in_homebrew_caskroom: bool,
     pub has_dpkg_record: bool,
     pub has_pacman_record: bool,
-    pub has_winget_record: bool,
+    pub has_windows_install_record: bool,
     pub is_appimage: bool,
 }
 
@@ -101,8 +113,8 @@ pub fn classify(exe: &Path, e: Evidence) -> InstallKind {
     if e.has_pacman_record {
         return InstallKind::ArchPackage;
     }
-    if e.has_winget_record {
-        return InstallKind::Winget;
+    if e.has_windows_install_record {
+        return InstallKind::WindowsInstaller;
     }
     // A binary under a system prefix that no package manager claims is still
     // not ours to overwrite: it needs root, and something put it there.
@@ -157,10 +169,9 @@ pub fn detect() -> InstallKind {
 
     #[cfg(windows)]
     {
-        // The NSIS installer and winget both leave this key, and both put the
-        // files where it says. Either way they are managed, and winget can
-        // upgrade without elevation.
-        e.has_winget_record = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
+        // The installer records where it put the files, and winget leaves the
+        // same record because it runs that same installer. One case, one answer.
+        e.has_windows_install_record = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER)
             .open_subkey(r"Software\GCloudDot")
             .and_then(|k| k.get_value::<String, _>("InstallDir"))
             .map(|dir| exe.starts_with(&dir))
@@ -384,6 +395,23 @@ mod tests {
         assert_eq!(brew, InstallKind::Homebrew);
         assert!(!brew.can_self_replace());
         assert!(brew.can_run_manager(), "brew needs no password");
+
+        let win = classify(
+            Path::new(r"C:\Users\live\AppData\Local\Programs\GCloud Dot\gcloud-dot-tray.exe"),
+            Evidence {
+                has_windows_install_record: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(win, InstallKind::WindowsInstaller);
+        assert!(
+            win.can_self_replace(),
+            "running our own installer again is the correct route for both \
+             the direct download and winget, and the only one that works when \
+             winget has never heard of this package"
+        );
+        assert!(!win.can_run_manager());
+        assert!(win.manager_command().is_none());
 
         let deb = classify(
             Path::new("/usr/bin/gcloud-dot-tray"),
@@ -847,18 +875,6 @@ fn start_manager(kind: InstallKind) -> Result<(), String> {
         InstallKind::Homebrew => {
             let mut c = proc::quiet("brew");
             c.args(["upgrade", "--cask", "nicglazkov/tap/gcloud-dot"]);
-            c
-        }
-        InstallKind::Winget => {
-            let mut c = proc::quiet("winget");
-            c.args([
-                "upgrade",
-                "--id",
-                "nicglazkov.GCloudDot",
-                "--silent",
-                "--accept-source-agreements",
-                "--accept-package-agreements",
-            ]);
             c
         }
         _ => return Err("no package manager to run".into()),

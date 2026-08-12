@@ -175,8 +175,16 @@ accordingly:
 | How you installed it | What the button does |
 |---|---|
 | Disk image, shell installer, AppImage | Replaces itself and restarts |
-| Homebrew, winget | Runs that manager, which needs no password |
+| Windows installer, or winget | Runs that signed installer again |
+| Homebrew | Runs `brew upgrade`, which needs no password |
 | apt, pacman | Changes nothing, and shows you the command |
+
+The Windows rows are one row on purpose. Both routes run the same installer and
+leave the same registry keys, so nothing on disk tells them apart, and the right
+answer is the same either way: run it again. It replaces the files and rewrites
+the Add or remove programs entry, which is where winget reads the installed
+version from, so both stay truthful. Running `winget upgrade` instead would
+simply fail for everyone who downloaded the installer directly.
 
 Every download is checked against the release's published `SHA256SUMS.txt`. On
 macOS that is not treated as sufficient on its own, because a checksum published
