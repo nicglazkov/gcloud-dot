@@ -197,7 +197,12 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      # Full history and tags, because the release notes are built from the
+      # commits between this tag and the one before it, and a shallow checkout
+      # has neither.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -214,8 +219,16 @@ jobs:
           sha256sum ./* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      # Written from the commit messages. GitHub's own generated notes are
+      # built from merged pull requests, and this repository is pushed to
+      # directly, so they came out as a bare compare link. The app's update
+      # banner sends people here to read what changed, so that was a promise
+      # the app made and the release broke.
+      - name: Release notes
+        run: packaging/release-notes.sh "${GITHUB_REF_NAME}" > RELEASE_NOTES.md
+
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           fail_on_unmatched_files: true
