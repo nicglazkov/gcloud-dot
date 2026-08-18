@@ -230,7 +230,13 @@ pub struct Asset {
 impl Release {
     /// The asset this platform should download, if there is one.
     pub fn asset_for_this_platform(&self, kind: InstallKind) -> Option<&Asset> {
-        let want = platform_asset_suffix(kind);
+        self.asset_for(kind, macos_is_bundled())
+    }
+
+    /// As above, with the bundle question answered by the caller so it can be
+    /// tested without one.
+    pub fn asset_for(&self, kind: InstallKind, macos_bundled: bool) -> Option<&Asset> {
+        let want = platform_asset_suffix(kind, macos_bundled);
         self.assets.iter().find(|a| a.name.ends_with(want))
     }
 
@@ -247,7 +253,7 @@ impl Release {
 /// to someone on arm64, where it would install cleanly and then refuse to run.
 /// Matching nothing is the better failure: it produces "this release has no
 /// download for this platform" and leaves the working copy alone.
-pub fn platform_asset_suffix(kind: InstallKind) -> &'static str {
+pub fn platform_asset_suffix(kind: InstallKind, macos_bundled: bool) -> &'static str {
     if kind == InstallKind::AppImage {
         return if cfg!(target_arch = "aarch64") {
             "-aarch64.AppImage"
@@ -256,13 +262,37 @@ pub fn platform_asset_suffix(kind: InstallKind) -> &'static str {
         };
     }
     if cfg!(target_os = "macos") {
-        ".dmg"
+        // A disk image only helps if there is an app bundle to put in place of
+        // another. The shell installer puts two bare binaries in a directory,
+        // and for those the tarball is the thing that matches what is on disk.
+        // Asking for the disk image there produced "this release has no
+        // download for this platform", which was both wrong and unhelpful.
+        if macos_bundled {
+            ".dmg"
+        } else {
+            "gcloud-dot-macos-universal.tar.gz"
+        }
     } else if cfg!(windows) {
         "-setup.exe"
     } else if cfg!(target_arch = "aarch64") {
         "gcloud-dot-linux-aarch64.tar.gz"
     } else {
         "gcloud-dot-linux-x86_64.tar.gz"
+    }
+}
+
+/// Is this copy running from inside a `.app`?
+///
+/// False everywhere but macOS, and false there for anything the shell
+/// installer put down.
+pub fn macos_is_bundled() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        current_app_bundle().is_some()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
     }
 }
 
@@ -534,7 +564,7 @@ mod tests {
         );
         assert_eq!(k, InstallKind::AppImage);
         assert!(k.can_self_replace());
-        assert!(platform_asset_suffix(k).ends_with(".AppImage"));
+        assert!(platform_asset_suffix(k, false).ends_with(".AppImage"));
     }
 
     #[test]
@@ -657,6 +687,7 @@ mod tests {
           {"name": "GCloud-Dot-1.0.6.dmg", "browser_download_url": "https://example.test/a.dmg"},
           {"name": "GCloud-Dot-1.0.6-setup.exe", "browser_download_url": "https://example.test/b.exe"},
           {"name": "gcloud-dot-linux-x86_64.tar.gz", "browser_download_url": "https://example.test/c.tgz"},
+          {"name": "gcloud-dot-macos-universal.tar.gz", "browser_download_url": "https://example.test/m.tgz"},
           {"name": "gcloud-dot-linux-aarch64.tar.gz", "browser_download_url": "https://example.test/d.tgz"},
           {"name": "GCloud_Dot-1.0.6-x86_64.AppImage", "browser_download_url": "https://example.test/e.AppImage"},
           {"name": "SHA256SUMS.txt", "browser_download_url": "https://example.test/sums"}
@@ -667,14 +698,15 @@ mod tests {
     fn reads_a_real_release_document() {
         let r = parse_release(RELEASE_JSON).unwrap();
         assert_eq!(r.version, "1.0.6");
-        assert_eq!(r.assets.len(), 6);
+        assert_eq!(r.assets.len(), 7);
         assert!(r.checksums_asset().is_some());
     }
 
     #[test]
     fn picks_the_asset_for_this_platform() {
         let r = parse_release(RELEASE_JSON).unwrap();
-        let a = r.asset_for_this_platform(InstallKind::SelfManaged).unwrap();
+        // Asked as a bundled install, which is what the disk image is for.
+        let a = r.asset_for(InstallKind::SelfManaged, true).unwrap();
         if cfg!(target_os = "macos") {
             assert!(a.name.ends_with(".dmg"));
         } else if cfg!(windows) {
@@ -693,6 +725,19 @@ mod tests {
         } else {
             assert!(img.unwrap().name.ends_with("-x86_64.AppImage"));
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_mac_without_a_bundle_takes_the_tarball() {
+        // The shell installer leaves two bare binaries. Asking for the disk
+        // image there answered "this release has no download for this
+        // platform", on a release carrying a download for exactly that case.
+        let r = parse_release(RELEASE_JSON).unwrap();
+        let bundled = r.asset_for(InstallKind::SelfManaged, true).unwrap();
+        assert!(bundled.name.ends_with(".dmg"));
+        let bare = r.asset_for(InstallKind::SelfManaged, false).unwrap();
+        assert_eq!(bare.name, "gcloud-dot-macos-universal.tar.gz");
     }
 
     #[test]
@@ -779,7 +824,18 @@ pub fn apply(release: &Release, kind: InstallKind, progress: &dyn Fn(&str)) -> R
 }
 
 #[cfg(target_os = "macos")]
-fn install_payload(dmg: &Path, _kind: InstallKind) -> Result<(), String> {
+fn install_payload(payload: &Path, kind: InstallKind) -> Result<(), String> {
+    // The shell installer leaves two binaries in a directory with no bundle
+    // around them, and there is nothing for the disk image path to swap. Those
+    // are replaced exactly as they are on Linux.
+    if !macos_is_bundled() {
+        return install_tarball(payload, kind);
+    }
+    install_disk_image(payload)
+}
+
+#[cfg(target_os = "macos")]
+fn install_disk_image(dmg: &Path) -> Result<(), String> {
     // Mounted at a path of our choosing. Some environments will not let a
     // process create a mount point under /Volumes, and a private mount point
     // avoids colliding with a volume of the same name already attached.
@@ -929,6 +985,15 @@ fn install_payload(setup: &Path, _kind: InstallKind) -> Result<(), String> {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn install_payload(payload: &Path, kind: InstallKind) -> Result<(), String> {
+    install_tarball(payload, kind)
+}
+
+/// Replace the two binaries beside this one, from a tarball of them.
+///
+/// Shared by Linux and by a macOS install with no bundle, because they are the
+/// same shape on disk: two executables in a directory somebody chose.
+#[cfg(unix)]
+fn install_tarball(payload: &Path, kind: InstallKind) -> Result<(), String> {
     if kind == InstallKind::AppImage {
         let target = std::env::var_os("APPIMAGE")
             .map(PathBuf::from)
@@ -970,7 +1035,7 @@ fn install_payload(payload: &Path, kind: InstallKind) -> Result<(), String> {
 /// the process on macOS. Renaming over it leaves the old inode alone, so
 /// anything still executing finishes on the old code and the new file is what
 /// starts next.
-#[cfg(all(unix, not(target_os = "macos")))]
+#[cfg(unix)]
 fn replace_file(src: &Path, dst: &Path) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     let staged = dst.with_extension("new");
@@ -1145,11 +1210,22 @@ pub fn clear_replaced_files() {
 pub fn schedule_relaunch() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        let bundle = current_app_bundle().ok_or("could not find the app to restart")?;
-        let script = format!(
-            "sleep 2; open -a {}",
-            shell_quote(&bundle.to_string_lossy())
-        );
+        // `open -a` wants a bundle. Without one, start the tray beside us the
+        // way Linux does.
+        let script = match current_app_bundle() {
+            Some(bundle) => format!(
+                "sleep 2; open -a {}",
+                shell_quote(&bundle.to_string_lossy())
+            ),
+            None => {
+                let exe = std::env::current_exe().map_err(|e| format!("{e}"))?;
+                let tray = exe
+                    .parent()
+                    .ok_or("no install directory")?
+                    .join("gcloud-dot-tray");
+                format!("sleep 2; exec {}", shell_quote(&tray.to_string_lossy()))
+            }
+        };
         spawn_detached_shell(&script)
     }
     #[cfg(all(unix, not(target_os = "macos")))]
