@@ -663,6 +663,24 @@ mod tests {
     }
 
     #[test]
+    fn homebrew_is_looked_for_where_it_installs_itself() {
+        // Both prefixes, and neither of them reachable from the PATH launchd
+        // gives a tray started at login. That PATH is /usr/bin:/bin plus the
+        // two sbin directories, and finding brew on it is what this avoids.
+        assert!(
+            BREW_LOCATIONS.contains(&"/opt/homebrew/bin/brew"),
+            "Apple Silicon"
+        );
+        assert!(BREW_LOCATIONS.contains(&"/usr/local/bin/brew"), "Intel");
+        for p in BREW_LOCATIONS {
+            assert!(
+                !p.starts_with("/usr/bin/") && !p.starts_with("/bin/"),
+                "{p} would have been on the login PATH anyway, so this list is wrong"
+            );
+        }
+    }
+
+    #[test]
     fn commands_that_need_no_filling_in_are_left_alone() {
         assert_eq!(
             concrete_command(InstallKind::Homebrew, "1.2.3").as_deref(),
@@ -1156,7 +1174,9 @@ pub fn run(current: &str, progress: &dyn Fn(&str)) -> Result<Outcome, String> {
 fn start_manager(kind: InstallKind) -> Result<(), String> {
     let mut cmd = match kind {
         InstallKind::Homebrew => {
-            let mut c = proc::quiet("brew");
+            let brew = brew_path()
+                .ok_or("Homebrew installed this copy, but its `brew` command could not be found")?;
+            let mut c = proc::quiet(brew);
             c.args(["upgrade", "--cask", "nicglazkov/tap/gcloud-dot"]);
             c
         }
@@ -1200,6 +1220,36 @@ pub fn clear_replaced_files() {
         }
     }
 }
+
+/// Where Homebrew keeps its own command.
+///
+/// Found by looking, not by asking `PATH`. A tray started at login is started
+/// by launchd, which hands it `/usr/bin:/bin:/usr/sbin:/sbin` and nothing else,
+/// so spawning `brew` by name fails with "No such file or directory" on a
+/// machine where Homebrew is sitting right there. The window would then report
+/// that the update could not be started, which is true and useless.
+///
+/// This is the same reason [`crate::gcloud::find`] checks known locations
+/// before it consults a shell.
+fn brew_path() -> Option<PathBuf> {
+    // Apple Silicon first, then Intel, which are the two prefixes Homebrew
+    // itself supports.
+    for p in BREW_LOCATIONS {
+        let p = Path::new(p);
+        if p.is_file() {
+            return Some(p.to_path_buf());
+        }
+    }
+    // An unusual prefix, for anyone who moved it.
+    std::env::var_os("PATH").and_then(|path| {
+        std::env::split_paths(&path)
+            .map(|d| d.join("brew"))
+            .find(|p| p.is_file())
+    })
+}
+
+/// The two prefixes Homebrew installs itself into.
+const BREW_LOCATIONS: &[&str] = &["/opt/homebrew/bin/brew", "/usr/local/bin/brew"];
 
 /// Arrange for a fresh copy to start shortly, then let the caller exit.
 ///
