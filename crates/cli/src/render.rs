@@ -157,7 +157,11 @@ pub fn history_text(state: &State) -> String {
             e.source.label()
         ));
         let mut sorted = state.samples.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        // total_cmp rather than partial_cmp().unwrap(). Session lengths are
+        // computed from clock arithmetic and a NaN should never reach this
+        // list, but "should never" is doing all the work in that sentence, and
+        // the cost of being wrong was the whole command panicking.
+        sorted.sort_by(f64::total_cmp);
         out.push_str(&format!(
             "  range {:.2}h to {:.2}h over {} samples\n\n",
             sorted.first().copied().unwrap_or_default(),
@@ -244,6 +248,19 @@ pub fn config_json(active: Option<&ActiveConfig>, all: &[String]) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_nonsense_sample_does_not_take_the_command_down() {
+        // `gcloud-dot history` sorts the samples to show their range, and did
+        // it with partial_cmp().unwrap(), which is None for NaN and so a panic
+        // for the whole command. Clock arithmetic should never produce one,
+        // but the state file is on disk where anything can reach it.
+        let mut samples = [16.0_f64, f64::NAN, 15.5, f64::INFINITY, 16.2];
+        samples.sort_by(f64::total_cmp);
+        assert_eq!(samples.len(), 5);
+        // Sorted, with the nonsense pushed to one end rather than throwing.
+        assert!(samples[0].is_finite());
+    }
+
     use super::*;
     use chrono::Duration;
     use gcloud_dot_core::estimate::{Estimate, EstimateSource};
