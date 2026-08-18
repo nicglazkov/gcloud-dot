@@ -29,6 +29,7 @@ pub mod id {
     pub const NOTIFICATIONS: &str = "set.notifications";
     pub const COUNTDOWN_TEXT: &str = "set.countdown";
     pub const TRACK_ADC: &str = "set.adc";
+    pub const CHECK_FOR_UPDATES: &str = "set.updates";
     /// Prefix for configuration switching: `config:<name>`.
     pub const CONFIG_PREFIX: &str = "config:";
     /// Prefix for appearance: `theme:system`, `theme:light`, `theme:dark`.
@@ -210,6 +211,16 @@ pub fn build(
         settings.track_adc,
         None,
     );
+    // The one setting here that reaches the network. Somebody who does not
+    // want an app calling GitHub once a day should be able to say so without
+    // editing a file they have to be told exists.
+    let updates = CheckMenuItem::with_id(
+        id::CHECK_FOR_UPDATES,
+        "Check for updates",
+        true,
+        settings.check_for_updates,
+        None,
+    );
 
     // Appearance, on every platform. The window is often the only one open on a
     // machine whose global theme was set for something else.
@@ -229,7 +240,8 @@ pub fn build(
         theme_items.iter().map(|i| i as &dyn IsMenuItem).collect();
     let appearance = Submenu::with_items("Appearance", true, &theme_refs).ok();
 
-    let mut settings_refs: Vec<&dyn IsMenuItem> = vec![&launch, &notifications, &track_adc];
+    let mut settings_refs: Vec<&dyn IsMenuItem> =
+        vec![&launch, &notifications, &track_adc, &updates];
     if let Some(sub) = &appearance {
         settings_refs.push(sub);
     }
@@ -316,6 +328,7 @@ mod tests {
             id::NOTIFICATIONS,
             id::COUNTDOWN_TEXT,
             id::TRACK_ADC,
+            id::CHECK_FOR_UPDATES,
         ];
         let unique: std::collections::HashSet<_> = all.iter().collect();
         assert_eq!(unique.len(), all.len());

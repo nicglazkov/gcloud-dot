@@ -28,22 +28,52 @@ pub fn check() -> Option<String> {
 /// app might be never.
 const RECHECK: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// How often the worker wakes to see whether it should be doing anything.
+///
+/// Short, so that switching the setting back on produces an answer while the
+/// menu the user just clicked is still in mind, rather than up to a day later.
+const POLL: Duration = Duration::from_secs(60);
+
 /// Keep checking on a worker thread, reporting whatever it finds.
+///
+/// One thread for the life of the process, whatever the setting does. The
+/// obvious alternative, starting a checker when the setting goes on, gets both
+/// halves wrong: switching it off leaves the running thread checking and still
+/// reporting, and switching it on and off repeatedly leaves one behind each
+/// time.
 ///
 /// `on_found` fires on every check that finds a newer release, including
 /// repeats of one already reported. Deciding what is worth saying out loud
 /// belongs to the caller, which is the only side that knows what the user has
 /// already been told.
-pub fn check_in_background<F: Fn(String) + Send + 'static>(first_delay: Duration, on_found: F) {
+pub fn check_in_background<F: Fn(String) + Send + 'static>(
+    first_delay: Duration,
+    enabled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    on_found: F,
+) {
+    use std::sync::atomic::Ordering;
+    use std::time::Instant;
+
     std::thread::spawn(move || {
-        // The first delay is shorter, and exists so a launch at login does not
-        // race the network coming up.
+        // The first delay exists so a launch at login does not race the
+        // network coming up.
         std::thread::sleep(first_delay);
+        let mut due = Instant::now();
         loop {
-            if let Some(version) = check() {
-                on_found(version);
+            if enabled.load(Ordering::Relaxed) {
+                if Instant::now() >= due {
+                    if let Some(version) = check() {
+                        on_found(version);
+                    }
+                    due = Instant::now() + RECHECK;
+                }
+            } else {
+                // Held due while switched off, so turning it on asks straight
+                // away instead of serving out the rest of a day nobody was
+                // counting.
+                due = Instant::now();
             }
-            std::thread::sleep(RECHECK);
+            std::thread::sleep(POLL);
         }
     });
 }

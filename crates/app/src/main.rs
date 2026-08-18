@@ -84,6 +84,7 @@ struct App {
     last_render: Option<RenderKey>,
     work_in_flight: bool,
     update_available: Option<String>,
+    update_checks_on: std::sync::Arc<std::sync::atomic::AtomicBool>,
     update_ui: update::UpdateUi,
     state_path: PathBuf,
     proxy: tao::event_loop::EventLoopProxy<UserEvent>,
@@ -158,13 +159,21 @@ fn main() {
         });
     }
 
-    let check_updates = engine.state.settings.check_for_updates;
-    if check_updates {
+    // Shared with the worker below, so the menu can turn it off without
+    // needing to reach into a thread.
+    let update_checks_on = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+        engine.state.settings.check_for_updates,
+    ));
+    {
         let proxy = proxy.clone();
         // Delayed so a login-time launch does not race the network coming up.
-        update::check_in_background(Duration::from_secs(20), move |v| {
-            let _ = proxy.send_event(UserEvent::UpdateFound(v));
-        });
+        update::check_in_background(
+            Duration::from_secs(20),
+            update_checks_on.clone(),
+            move |v| {
+                let _ = proxy.send_event(UserEvent::UpdateFound(v));
+            },
+        );
     }
 
     let mut app = App {
@@ -176,6 +185,7 @@ fn main() {
         last_render: None,
         work_in_flight: false,
         update_available: None,
+        update_checks_on: update_checks_on.clone(),
         update_ui: update::UpdateUi::default(),
         state_path: paths::state_path(),
         proxy: proxy.clone(),
@@ -547,6 +557,24 @@ impl App {
                 self.save();
                 self.last_render = None; // force a redraw
                 self.refresh_ui();
+                self.rebuild_menu();
+            }
+            menu::id::CHECK_FOR_UPDATES => {
+                let now_on = !self.engine.state.settings.check_for_updates;
+                self.engine.state.settings.check_for_updates = now_on;
+                // The worker reads this rather than being started and stopped,
+                // so switching off takes effect on its next wake.
+                self.update_checks_on
+                    .store(now_on, std::sync::atomic::Ordering::Relaxed);
+                if !now_on {
+                    // Stop saying a newer version exists once asked not to look.
+                    self.update_available = None;
+                    if !self.update_ui.is_busy() {
+                        self.update_ui = update::UpdateUi::Nothing;
+                    }
+                    self.refresh_panel();
+                }
+                self.save();
                 self.rebuild_menu();
             }
             menu::id::TRACK_ADC => {
