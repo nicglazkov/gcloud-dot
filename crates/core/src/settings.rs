@@ -290,3 +290,47 @@ mod tests {
         assert_eq!(s, Settings::default());
     }
 }
+
+#[cfg(test)]
+mod readme {
+    use super::Settings;
+
+    /// The README publishes the defaults for the settings that have no control
+    /// in the app, since editing the state file is the only way to reach them.
+    /// A wrong number there is worse than no number, and one was wrong the
+    /// first time this table was written.
+    #[test]
+    fn the_documented_defaults_are_the_real_ones() {
+        let readme =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md"))
+                .expect("README.md sits two levels up from this crate");
+        let d = Settings::default();
+
+        let claims = [
+            (
+                "warn_at_minutes",
+                format!(
+                    "[{}]",
+                    d.warn_at_minutes
+                        .iter()
+                        .map(|m| m.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            ),
+            ("sa_key_warn_days", d.sa_key_warn_days.to_string()),
+            ("check_for_updates", d.check_for_updates.to_string()),
+        ];
+
+        for (key, value) in claims {
+            let row = readme
+                .lines()
+                .find(|l| l.starts_with(&format!("| `{key}`")))
+                .unwrap_or_else(|| panic!("the README no longer documents {key}"));
+            assert!(
+                row.contains(&format!("`{value}`")),
+                "the README says {key} defaults to something other than {value}:\n{row}"
+            );
+        }
+    }
+}

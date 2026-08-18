@@ -138,6 +138,7 @@ $ gcloud-dot
 | `gcloud-dot` | The current state, checked live |
 | `gcloud-dot --json` | The same as a stable JSON document |
 | `gcloud-dot --offline` | Report from disk only, with no gcloud call |
+| `gcloud-dot check` | Force a check now and report what it found |
 | `gcloud-dot history` | Every login and every measured session length |
 | `gcloud-dot config [name]` | Show configurations, or switch to one |
 | `gcloud-dot login` | Run `gcloud auth login` |
@@ -205,6 +206,33 @@ bundle's Developer ID team is verified and Gatekeeper is asked for its own
 verdict before it is allowed to replace the running app. On Windows the update
 runs the project's signed installer rather than swapping files by hand, so the
 uninstall entry and the Start menu shortcut stay truthful.
+
+<br>
+
+## Settings
+
+Four of these are in the tray menu: launch at login, notifications, tracking
+application default credentials, and checking for updates. Appearance is there
+too.
+
+The rest are read from the state file and have no control in the app, because
+they are the kind of thing you set once. `gcloud-dot paths` prints where that
+file is. Edit it while the app is stopped, or it will write its own copy back
+over yours on the next change.
+
+| Key | Default | What it does |
+|---|---|---|
+| `warn_at_minutes` | `[120, 30]` | Minutes left at which to warn. One notification per threshold per session |
+| `quiet_hours` | off | A `start` and `end` hour and minute between which notifications are held |
+| `sa_key_warn_days` | `90` | Age at which a service account key file is called stale |
+| `check_for_updates` | `true` | Whether to ask GitHub once a day for a newer release. Also in the menu |
+| `theme` | `system` | `system`, `light`, or `dark`. Also in the menu |
+| `show_countdown_text` | `true` | macOS only, the countdown beside the menu bar icon. Also in the menu |
+
+A threshold crossed during quiet hours is marked as fired and never shown late,
+because "your session expires in 60 minutes" is worse than useless once it is
+no longer true. An expiry notice names no time, so it cannot go stale, and is
+held rather than dropped.
 
 <br>
 
