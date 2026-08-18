@@ -75,15 +75,36 @@ linking a dependency tree larger than the rest of the app for one request a day.
 
 ## Known advisories
 
-**`glib` 0.18.5, RUSTSEC unsoundness in `VariantStrIter`** (medium). Reachable
-only in Linux builds, where `glib` arrives through `gtk` 0.18, which is what
-`tao` pins. The fix is in `glib` 0.20, which needs `gtk` 0.20, which needs a
-`tao` release that has not happened yet, so this cannot be resolved from here.
+`cargo audit` runs in CI on every push, and fails the build on a vulnerability.
+As of 1.1.8 the tree has **no known vulnerabilities**. It carries thirteen
+warnings, and all but one of them are the same thing seen thirteen times.
 
-The affected type is a GTK binding this project never names, directly or
+**GTK 3 bindings, unmaintained** (ten crates: `gtk`, `gdk`, `atk`, their `-sys`
+companions, and `gtk3-macros`), plus **`glib` 0.18.5, RUSTSEC unsoundness in
+`VariantStrIter`** and **`proc-macro-error`, unmaintained**, which arrives as a
+build dependency of `glib-macros`.
+
+All twelve reach the tree the same way, and only in Linux builds:
+
+```
+tao 0.36  ->  gtk 0.18  ->  glib 0.18.5
+tray-icon 0.24  ->  libappindicator / muda  ->  gtk 0.18
+```
+
+Both of the crates this project depends on for a window and a tray icon pin
+GTK 3, so neither can be worked around by dropping the other. The fixes live in
+`glib` 0.20, which needs `gtk` 0.20, which needs releases of `tao` and
+`tray-icon` that have not happened. This cannot be resolved from here, and it
+will be picked up automatically when they move.
+
+The unsound type is a GTK binding this project never names, directly or
 indirectly, and the flaw is unsoundness in an iterator rather than anything
-reachable from input. It is listed here rather than dismissed quietly, and it
-will be picked up automatically when `tao` moves.
+reachable from input.
+
+**`ttf-parser`, unmaintained.** The only warning that is not about GTK, and the
+only one present on every platform. It arrives through `ab_glyph`, which draws
+the countdown text into the tray icon. It parses font files that ship inside the
+binary, so nothing an attacker controls reaches it.
 
 ## Supported versions
 

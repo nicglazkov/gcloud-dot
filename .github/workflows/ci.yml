@@ -66,3 +66,17 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -p gcloud-dot-cli
+
+  # Fails on a vulnerability, not on the unmaintained GTK 3 bindings that
+  # `tao` and `tray-icon` both pin and that this project cannot move off on its
+  # own. Those are written up in SECURITY.md; this job is here so a real one
+  # cannot arrive unnoticed between the times somebody thinks to look.
+  audit:
+    name: Audit dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit
