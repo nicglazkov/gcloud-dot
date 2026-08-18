@@ -35,7 +35,7 @@ $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("gclouddot-" + [guid]::NewGu
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 try {
-    Say 'downloading...'
+    Say 'downloading'
     $zip = Join-Path $tmp $asset
     Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
