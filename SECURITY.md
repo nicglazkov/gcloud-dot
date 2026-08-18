@@ -76,7 +76,7 @@ linking a dependency tree larger than the rest of the app for one request a day.
 ## Known advisories
 
 `cargo audit` runs in CI on every push, and fails the build on a vulnerability.
-As of 1.1.8 the tree has **no known vulnerabilities**. It carries thirteen
+As of 1.1.9 the tree has **no known vulnerabilities**. It carries thirteen
 warnings, and all but one of them are the same thing seen thirteen times.
 
 **GTK 3 bindings, unmaintained** (ten crates: `gtk`, `gdk`, `atk`, their `-sys`
