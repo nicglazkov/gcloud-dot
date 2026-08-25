@@ -801,10 +801,23 @@ mod tests {
 #[cfg(target_os = "macos")]
 const TEAM_ID: &str = "M7D6YHVDNK";
 
+/// What actually happened when the payload was installed.
+pub enum Applied {
+    /// The files are in place. The caller arranges any restart.
+    Replaced,
+    /// The signed installer is doing it, detached, and will restart the tray
+    /// itself. The caller should get out of its way.
+    HandedToInstaller,
+}
+
 /// Download the new version, check it, and put it in place.
 ///
 /// `progress` is called with short lines suitable for showing in a window.
-pub fn apply(release: &Release, kind: InstallKind, progress: &dyn Fn(&str)) -> Result<(), String> {
+pub fn apply(
+    release: &Release,
+    kind: InstallKind,
+    progress: &dyn Fn(&str),
+) -> Result<Applied, String> {
     if !kind.can_self_replace() {
         return Err("this copy is managed by a package manager".into());
     }
@@ -842,14 +855,16 @@ pub fn apply(release: &Release, kind: InstallKind, progress: &dyn Fn(&str)) -> R
 }
 
 #[cfg(target_os = "macos")]
-fn install_payload(payload: &Path, kind: InstallKind) -> Result<(), String> {
+fn install_payload(payload: &Path, kind: InstallKind) -> Result<Applied, String> {
     // The shell installer leaves two binaries in a directory with no bundle
     // around them, and there is nothing for the disk image path to swap. Those
     // are replaced exactly as they are on Linux.
     if !macos_is_bundled() {
-        return install_tarball(payload, kind);
+        install_tarball(payload, kind)?;
+    } else {
+        install_disk_image(payload)?;
     }
-    install_disk_image(payload)
+    Ok(Applied::Replaced)
 }
 
 #[cfg(target_os = "macos")]
@@ -964,12 +979,35 @@ pub fn current_app_bundle() -> Option<PathBuf> {
 }
 
 #[cfg(windows)]
-fn install_payload(setup: &Path, _kind: InstallKind) -> Result<(), String> {
-    // Windows will not overwrite an image that is running, and the process
-    // asking for this upgrade is running from one of the two files the
-    // installer is about to replace. The installer stops the tray before it
-    // writes, which covers that one, but nothing can stop the process doing
-    // the asking.
+fn install_payload(setup: &Path, _kind: InstallKind) -> Result<Applied, String> {
+    // The tray must not wait for the installer, because the installer's first
+    // act is to kill the tray. Waiting is how the previous version of this
+    // function ended: taskkilled partway through itself, its cleanup never
+    // run, the downloaded installer left on disk to be found six days later.
+    // The tray now starts the installer detached and reports the handover;
+    // the installer replaces the files and starts a fresh tray itself.
+    let is_the_tray = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .is_some_and(|stem| stem.eq_ignore_ascii_case("gcloud-dot-tray"));
+    if is_the_tray {
+        proc::quiet(setup)
+            .arg("/S")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("could not start the installer: {e}"))?;
+        return Ok(Applied::HandedToInstaller);
+    }
+
+    // The command line is not the tray, so the installer does not kill it, and
+    // it can wait and report the outcome properly.
+    //
+    // Windows will not overwrite an image that is running, and this process is
+    // running from one of the two files the installer is about to replace. The
+    // installer stops the tray before it writes, which covers that one, but
+    // nothing can stop the process doing the asking.
     //
     // Renaming is allowed where overwriting is not: an open handle follows the
     // file rather than the path, so this process carries on executing from the
@@ -998,12 +1036,13 @@ fn install_payload(setup: &Path, _kind: InstallKind) -> Result<(), String> {
         }
         return Err("the installer did not finish".into());
     }
-    Ok(())
+    Ok(Applied::Replaced)
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
-fn install_payload(payload: &Path, kind: InstallKind) -> Result<(), String> {
-    install_tarball(payload, kind)
+fn install_payload(payload: &Path, kind: InstallKind) -> Result<Applied, String> {
+    install_tarball(payload, kind)?;
+    Ok(Applied::Replaced)
 }
 
 /// Replace the two binaries beside this one, from a tarball of them.
@@ -1141,10 +1180,15 @@ pub fn run(current: &str, progress: &dyn Fn(&str)) -> Result<Outcome, String> {
     let to = release.version.clone();
 
     if kind.can_self_replace() {
-        apply(&release, kind, progress)?;
-        return Ok(Outcome::Upgraded {
-            from: current.to_string(),
-            to,
+        return Ok(match apply(&release, kind, progress)? {
+            Applied::Replaced => Outcome::Upgraded {
+                from: current.to_string(),
+                to,
+            },
+            Applied::HandedToInstaller => Outcome::Handed {
+                to,
+                command: "the GCloud Dot installer".to_string(),
+            },
         });
     }
 
@@ -1202,6 +1246,14 @@ fn start_manager(kind: InstallKind) -> Result<(), String> {
 /// Best effort throughout. A file that cannot be removed will be caught by the
 /// next upgrade, or by the reboot already scheduled for it.
 pub fn clear_replaced_files() {
+    // The staging directory too, on every platform. A tray upgrading itself on
+    // Windows is killed by its own installer partway through `apply`, so the
+    // cleanup at the end of that function never runs and the downloaded
+    // installer stays behind; it was found six days later, a megabyte of
+    // leftover that also confused the person reading the directory. Startup is
+    // the one moment no upgrade can be in flight.
+    let _ = std::fs::remove_dir_all(staging_dir());
+
     #[cfg(windows)]
     {
         let Ok(exe) = std::env::current_exe() else {

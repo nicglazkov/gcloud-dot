@@ -12,6 +12,7 @@
 
 mod actions;
 mod autostart;
+mod diag;
 mod icon;
 mod legacy;
 mod menu;
@@ -106,6 +107,7 @@ fn main() {
     notify::register_windows_identity();
     // Anything a previous upgrade could not delete because it was still running.
     gcloud_dot_core::upgrade::clear_replaced_files();
+    diag::note(concat!("started, version ", env!("CARGO_PKG_VERSION")));
 
     // Before touching the login item, stand down whatever came before. Both
     // predecessors share this app's identity, so leaving one running puts two
@@ -220,6 +222,7 @@ fn main() {
                     *control_flow = ControlFlow::Exit;
                     return;
                 }
+                app.heal_tray_if_dead();
                 let plan = app.engine.plan(Local::now());
                 app.dispatch_work(&proxy, plan);
                 // Redraw regardless: the countdown advances on its own.
@@ -249,6 +252,7 @@ fn main() {
             // gcloud runs with no window, so a failure has nowhere to appear
             // unless the app says so itself.
             Event::UserEvent(UserEvent::LoginFailed(reason)) => {
+                diag::note(&format!("sign in did not finish: {reason}"));
                 notify::show(
                     "Sign in did not finish",
                     &format!(
@@ -292,6 +296,7 @@ fn main() {
             }
 
             Event::UserEvent(UserEvent::UpdateDone(result)) => {
+                diag::note(&format!("update attempt finished: {result:?}"));
                 app.update_ui = update::UpdateUi::from_outcome(*result);
                 if matches!(app.update_ui, update::UpdateUi::Restarting(_)) {
                     app.update_available = None;
@@ -352,6 +357,7 @@ impl App {
         match builder.build() {
             Ok(tray) => self.tray = Some(tray),
             Err(e) => {
+                diag::note(&format!("could not create a tray icon: {e}"));
                 eprintln!("gcloud-dot: could not create a tray icon: {e}");
                 eprintln!("{}", linux_tray_hint());
             }
@@ -439,6 +445,47 @@ impl App {
         if let Err(e) = self.engine.state.save(&self.state_path) {
             eprintln!("gcloud-dot: could not save state: {e}");
         }
+    }
+
+    /// Notice a dead tray icon and put a new one up.
+    ///
+    /// On Windows the shell can crash. It did, four days into a six day
+    /// uptime: Explorer took an access violation in a shell DLL and was
+    /// restarted by userinit, and from then on the icon took clicks and did
+    /// nothing, while the process behind it was demonstrably healthy. The
+    /// library re-registers on the TaskbarCreated broadcast, but after a crash
+    /// that is not always the end of the story, and the user's read on it was
+    /// "the app is stuck".
+    ///
+    /// So the app stops assuming. Once a tick, it pushes the tooltip it
+    /// already shows; that is one cheap shell message whose reply says whether
+    /// the icon still exists. On any error the whole tray is rebuilt from
+    /// scratch, menu and all, which resets every scrap of state the old shell
+    /// held about us. Worst case after a shell crash is five seconds of
+    /// missing icon.
+    fn heal_tray_if_dead(&mut self) {
+        let Some(tray) = &self.tray else {
+            return;
+        };
+        let tooltip = self
+            .last_render
+            .as_ref()
+            .map(|k| k.tooltip.clone())
+            .unwrap_or_default();
+        if tray.set_tooltip(Some(&tooltip)).is_ok() {
+            return;
+        }
+        diag::note("tray icon stopped answering; rebuilding it");
+        self.tray = None;
+        self.last_render = None;
+        self.build_tray();
+        self.refresh_ui();
+        self.rebuild_menu();
+        diag::note(if self.tray.is_some() {
+            "tray icon rebuilt"
+        } else {
+            "tray icon could not be rebuilt"
+        });
     }
 
     fn refresh_ui(&mut self) {
@@ -685,6 +732,7 @@ impl App {
         {
             Ok(w) => w,
             Err(e) => {
+                diag::note(&format!("could not open the details window: {e}"));
                 eprintln!("gcloud-dot: could not open the details window: {e}");
                 return;
             }

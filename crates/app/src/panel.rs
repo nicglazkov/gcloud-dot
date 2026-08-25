@@ -505,7 +505,7 @@ fn update_banner(u: &UpdateUi) -> String {
         UpdateUi::Handed(v) => format!(
             r#"<div class="banner">
     <div class="spin"></div>
-    <div class="bt"><b>Installing {v}</b><span>Your package manager is doing this. GCloud Dot reopens when it finishes.</span></div>
+    <div class="bt"><b>Installing {v}</b><span>This finishes outside the app. GCloud Dot reopens by itself when it is done.</span></div>
   </div>"#,
             v = esc(v),
         ),
