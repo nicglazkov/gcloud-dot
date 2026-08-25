@@ -73,6 +73,26 @@ reimplement. There is no HTTP client and no TLS stack in the tree: the update
 check shells out to `curl`, which every supported system ships, rather than
 linking a dependency tree larger than the rest of the app for one request a day.
 
+## Windows hardening rules
+
+The app is designed to stay on the right side of Defender's attack surface
+reduction rules and of EDR heuristics generally, because a credential monitor
+that trips security tooling has failed at its one job of being trustworthy.
+
+Concretely, nothing this project ships creates a process by way of WMI or
+PSExec, uses `-EncodedCommand` or `-WindowStyle Hidden`, or writes outside the
+user's own profile. The tray is started three ways only: the installer's finish
+page, the Startup folder shortcut, and, during a self update, the signed
+installer restarting it as its own child. All three give it an ordinary,
+explainable parent.
+
+The one ASR block ever recorded against it came from this project's own remote
+test harness, which started the tray over SSH via `Invoke-CimMethod` on
+`Win32_Process`. That parents the process under `WmiPrvSE.exe`, which is
+exactly what the "block process creations originating from PSExec and WMI
+commands" rule exists to stop, and Defender was right to object. The harness
+uses the task scheduler now. No user-facing path was ever involved.
+
 ## Known advisories
 
 `cargo audit` runs in CI on every push, and fails the build on a vulnerability.
