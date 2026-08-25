@@ -96,7 +96,7 @@ uses the task scheduler now. No user-facing path was ever involved.
 ## Known advisories
 
 `cargo audit` runs in CI on every push, and fails the build on a vulnerability.
-As of 1.1.10 the tree has **no known vulnerabilities**. It carries thirteen
+As of 1.1.11 the tree has **no known vulnerabilities**. It carries thirteen
 warnings, and all but one of them are the same thing seen thirteen times.
 
 **GTK 3 bindings, unmaintained** (ten crates: `gtk`, `gdk`, `atk`, their `-sys`
