@@ -38,7 +38,7 @@ jobs:
             platform: windows-x86_64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A tag that disagrees with the crate version ships binaries whose
       # --version, update check, and About line all report the wrong number.
@@ -177,7 +177,7 @@ jobs:
           "/c/Program Files (x86)/NSIS/makensis.exe" -DVERSION="$version" packaging/windows/installer.nsi
           mv packaging/windows/*setup.exe dist/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.platform }}
           path: |
@@ -194,16 +194,16 @@ jobs:
   publish:
     name: Publish release
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       # Full history and tags, because the release notes are built from the
       # commits between this tag and the one before it, and a shallow checkout
       # has neither.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -227,7 +227,7 @@ jobs:
       - name: Release notes
         run: packaging/release-notes.sh "${GITHUB_REF_NAME}" > RELEASE_NOTES.md
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*
           body_path: RELEASE_NOTES.md
