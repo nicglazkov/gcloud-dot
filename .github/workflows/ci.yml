@@ -23,7 +23,7 @@ jobs:
       matrix:
         os: [macos-14, ubuntu-22.04, windows-2022]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # wry links against the system webview, so the tray binary needs these
       # headers even to compile. The engine and CLI do not, which is what keeps
@@ -62,7 +62,7 @@ jobs:
     name: CLI builds without a desktop
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release -p gcloud-dot-cli
@@ -73,9 +73,9 @@ jobs:
   # cannot arrive unnoticed between the times somebody thinks to look.
   audit:
     name: Audit dependencies
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-audit --locked
