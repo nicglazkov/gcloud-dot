@@ -7,7 +7,13 @@
 <meta name="description" content="GCloud Dot has no account, no telemetry, and no server. What it stores, where, and what leaves your machine.">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="stylesheet" href="console.css">
-<script>(function(){try{var q=location.search.match(/theme=(light|dark)/),t=q?q[1]:localStorage.getItem("gclouddot-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+<script>
+  // Applied before first paint so the page never flashes the wrong theme.
+  // ?theme=light|dark wins for one visit, then a saved choice, then the system setting.
+  (function(){var s=null;try{var q=location.search.match(/theme=(light|dark)/);s=q?q[1]:localStorage.getItem("gclouddot-theme");}catch(e){}
+  if(s!=="light"&&s!=="dark")s=window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+  document.documentElement.setAttribute("data-theme",s);})();
+</script>
 </head>
 <body>
 
