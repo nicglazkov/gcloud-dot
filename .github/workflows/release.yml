@@ -25,7 +25,7 @@ jobs:
           # One universal macOS build rather than per-architecture jobs: GitHub
           # has retired its Intel macOS runners, so an x86_64 job never starts.
           - label: macos-universal
-            runner: macos-14
+            runner: macos-15
             platform: macos-universal
           - label: linux-x86_64
             runner: ubuntu-22.04
