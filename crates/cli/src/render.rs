@@ -271,7 +271,7 @@ mod tests {
             auth: AuthState::Valid,
             config: Some(ActiveConfig {
                 name: "default".into(),
-                account: Some("nic@glazkov.com".into()),
+                account: Some("you@example.com".into()),
                 project: Some("my-project".into()),
             }),
             session_start: Some(Local::now() - Duration::hours(2)),
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn text_output_names_the_account_and_the_evidence() {
         let text = status_text(&sample_status(), &State::default());
-        assert!(text.contains("nic@glazkov.com"));
+        assert!(text.contains("you@example.com"));
         assert!(text.contains("my-project"));
         assert!(text.contains("n=18"));
     }

@@ -135,7 +135,7 @@ mod tests {
     const REAL_LOGIN: &str = r#"
 2026-08-07 12:26:51,101 DEBUG    Running [gcloud.auth.login] with arguments: []
 2026-08-07 12:26:53,875 INFO     Credentials saved to file: [/Users/nic/.config/gcloud/credentials.db]
-2026-08-07 12:26:53,876 INFO     You are now logged in as [nic@glazkov.com].
+2026-08-07 12:26:53,876 INFO     You are now logged in as [you@example.com].
 "#;
 
     const CANCELLED_LOGIN: &str = r#"
