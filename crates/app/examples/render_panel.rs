@@ -73,7 +73,7 @@ fn main() {
         }),
         config: Some(ActiveConfig {
             name: "default".into(),
-            account: Some("nic@glazkov.com".into()),
+            account: Some("you@example.com".into()),
             project: Some("chalkboard-493217".into()),
         }),
         session_start: state.last_login(),

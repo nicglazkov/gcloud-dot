@@ -91,7 +91,7 @@ mod tests {
 
     const CONFIG: &str = r#"
 [core]
-account = nic@glazkov.com
+account = you@example.com
 project = my-project
 disable_usage_reporting = True
 
@@ -104,7 +104,7 @@ region = us-west1
         let got = parse_ini_section(CONFIG, "core");
         assert_eq!(
             got.iter().find(|(k, _)| k == "account").unwrap().1,
-            "nic@glazkov.com"
+            "you@example.com"
         );
         assert_eq!(
             got.iter().find(|(k, _)| k == "project").unwrap().1,
@@ -138,7 +138,7 @@ region = us-west1
 
         let active = active(root).unwrap();
         assert_eq!(active.name, "work");
-        assert_eq!(active.account.as_deref(), Some("nic@glazkov.com"));
+        assert_eq!(active.account.as_deref(), Some("you@example.com"));
         assert_eq!(active.project.as_deref(), Some("my-project"));
         assert_eq!(list(root), vec!["default".to_string(), "work".to_string()]);
     }

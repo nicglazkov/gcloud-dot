@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GCloud Dot, know before your gcloud session expires</title>
-<meta name="theme-color" content="#0c0e12">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c0e12" media="(prefers-color-scheme: dark)">
 <meta name="description" content="A menu bar and system tray dot that shows whether your gcloud auth session is alive and roughly how long it has left. macOS, Windows, Linux. Free and MIT licensed.">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="img/favicon.png" type="image/png">
@@ -16,7 +17,13 @@
 <meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="console.css">
 <!-- Applied before the first paint; a deferred file would flash the wrong theme. -->
-<script>(function(){try{var q=location.search.match(/theme=(light|dark)/),t=q?q[1]:localStorage.getItem("gclouddot-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}})();</script>
+<script>
+  // Applied before first paint so the page never flashes the wrong theme.
+  // ?theme=light|dark wins for one visit, then a saved choice, then the system setting.
+  (function(){var s=null;try{var q=location.search.match(/theme=(light|dark)/);s=q?q[1]:localStorage.getItem("gclouddot-theme");}catch(e){}
+  if(s!=="light"&&s!=="dark")s=window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";
+  document.documentElement.setAttribute("data-theme",s);})();
+</script>
 </head>
 <body>
 
@@ -213,7 +220,7 @@
     <p class="note">The same engine, for prompts, scripts, and machines with no desktop.</p>
     <pre><code>$ gcloud-dot
 🟢 signed in, about 14h 12m left (measured, n=18)
-  account       nic@glazkov.com
+  account       you@example.com
   project       my-project
   configuration default
   last login    Fri Aug 8, 06:31 (2h ago)

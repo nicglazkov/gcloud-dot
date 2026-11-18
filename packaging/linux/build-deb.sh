@@ -47,7 +47,7 @@ Priority: optional
 Architecture: $ARCH
 Depends: libc6, libgtk-3-0, libwebkit2gtk-4.1-0, libxdo3, libdbus-1-3
 Recommends: libayatana-appindicator3-1
-Maintainer: Nicholas Glazkov <nic@glazkov.com>
+Maintainer: Nicholas Glazkov <82780940+nicglazkov@users.noreply.github.com>
 Homepage: https://nicglazkov.github.io/gcloud-dot/
 Description: Shows how long your gcloud auth session has left
  GCloud Dot puts a dot in the system tray that reports whether your

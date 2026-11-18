@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Email <nic@glazkov.com>, or open a
+Open a
 [private advisory](https://github.com/nicglazkov/gcloud-dot/security/advisories/new).
 Please do not open a public issue for a vulnerability before it is fixed.
 

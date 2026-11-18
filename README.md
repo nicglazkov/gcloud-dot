@@ -125,7 +125,7 @@ add `--no-gui` to install only the command.
 ```console
 $ gcloud-dot
 🟢 signed in, about 14h 12m left (measured, n=18)
-  account       nic@glazkov.com
+  account       you@example.com
   project       my-project
   configuration default
   last login    Fri Aug 8, 06:31 (2h ago)

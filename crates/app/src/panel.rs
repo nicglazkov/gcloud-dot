@@ -626,7 +626,7 @@ mod tests {
             auth: AuthState::Valid,
             config: Some(ActiveConfig {
                 name: "default".into(),
-                account: Some("nic@glazkov.com".into()),
+                account: Some("you@example.com".into()),
                 project: Some("my-project".into()),
             }),
             session_start: state.last_login(),
@@ -644,7 +644,7 @@ mod tests {
     fn renders_the_account_and_evidence() {
         let (status, state) = fixture();
         let page = document(&view(&status, &state, &UpdateUi::Nothing), Theme::System);
-        assert!(page.contains("nic@glazkov.com"));
+        assert!(page.contains("you@example.com"));
         assert!(page.contains("my-project"));
         assert!(page.contains("16.06"));
         assert!(page.contains("Measured from sessions seen expiring."));
