@@ -132,19 +132,17 @@ fn from_path(name: &str) -> Option<PathBuf> {
 }
 
 fn is_executable(p: &Path) -> bool {
-    if !p.is_file() {
-        return false;
-    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::metadata(p)
-            .map(|m| m.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false)
+        p.is_file()
+            && std::fs::metadata(p)
+                .map(|m| m.permissions().mode() & 0o111 != 0)
+                .unwrap_or(false)
     }
     #[cfg(not(unix))]
     {
-        true
+        p.is_file()
     }
 }
 
